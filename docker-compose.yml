@@ -11,6 +11,8 @@ services:
     restart: unless-stopped
     ports:
       - "0.0.0.0:3000:80"
+    extra_hosts:
+      - "api.binance.com:108.158.2.161"
     env_file:
       - .env
     environment:
