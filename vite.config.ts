@@ -22,7 +22,7 @@ export default defineConfig({
             console.error('Proxy error:', err)
           })
           proxy.on('proxyReq', (_proxyReq, req) => {
-            console.log('Proxying request:', req.method, req.url, '->', options.target + req.url)
+            console.log('Proxying request:', req.method, req.url, '->', String(options.target ?? '') + (req.url ?? ''))
           })
         }
       },
@@ -35,7 +35,7 @@ export default defineConfig({
             console.error('Alpha API proxy error:', err)
           })
           proxy.on('proxyReq', (_proxyReq, req) => {
-            console.log('Proxying Alpha request:', req.method, req.url, '->', options.target + req.url)
+            console.log('Proxying Alpha request:', req.method, req.url, '->', String(options.target ?? '') + (req.url ?? ''))
           })
         }
       }
