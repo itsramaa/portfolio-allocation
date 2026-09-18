@@ -5,6 +5,7 @@
 // Supports Spot account (/api/v3/account), Funding wallet (/sapi/v1/asset/get-funding-asset), and Simple Earn positions
 
 import type { ApiCredentials } from './types'
+import { sha256 } from 'js-sha256'
 
 const BASE = '/binance'
 
@@ -45,18 +46,25 @@ async function getCalibratedTimestamp(): Promise<number> {
   return Date.now() + (serverTimeOffset ?? 0)
 }
 
-// ─── HMAC-SHA256 via WebCrypto ─────────────────────────────────────────────
+// ─── HMAC-SHA256 via WebCrypto (with js-sha256 fallback for non-secure HTTP contexts) ───
 async function hmac(secret: string, message: string): Promise<string> {
-  const enc = new TextEncoder()
-  const key = await crypto.subtle.importKey(
-    'raw', enc.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false, ['sign']
-  )
-  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message))
-  return Array.from(new Uint8Array(sig))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+    try {
+      const enc = new TextEncoder()
+      const key = await crypto.subtle.importKey(
+        'raw', enc.encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false, ['sign']
+      )
+      const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message))
+      return Array.from(new Uint8Array(sig))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+    } catch {
+      // fallback to pure JS HMAC below
+    }
+  }
+  return sha256.hmac(secret, message)
 }
 
 // ─── Signed GET request with auto-retry on timestamp drift ─────────────────
