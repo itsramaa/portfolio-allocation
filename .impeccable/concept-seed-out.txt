@@ -1,0 +1,129 @@
+﻿DIRECTION CONCEPT SEED (key: b20091fa; mode: operate; source: api; approved pool: c3b204a1eed6; 306/564 human-approved; rerun with --scope direction --mode operate --from b20091fa --candidate-count 7 to reproduce this roll against this catalog revision)
+ASSIGNED INDEX: 6
+  After ordering the grounded directions by resonance, build candidate
+  6 of your own grounded list; the assignment never points at a
+  challenger. The assignment is the roll, not a suggestion: your top-ranked
+  direction is what every run would ship, so the script decides which grounded
+  direction gets built. Each direction joins a durable visual system to a
+  concrete expression for the requested first surface, decided as one. It must
+  survive the current task plus navigation, quiet and dense content,
+  interaction and state, and a substantially different future surface. In an
+  attended run, present the assigned direction fully committed and offer
+  re-roll. You may add ONE card for your top-ranked grounded candidate when
+  it is not the assigned direction, kicker IMPECCABLEΓÇÖS PICK, with an honest risk line
+  naming its familiarity; one pick card, never a ranked lineup, and the pick
+  never takes the lead position. When the assignment IS your top candidate,
+  there is no pick card. Re-roll yourself only
+  on named factual grounds, when the assignment cannot carry the product's
+  truth or task; taste is never grounds.
+  The assignment exists to refuse the model's ranking rut, never to outrank
+  the user or the brief. Never expose assignment metadata in user-facing labels.
+CHALLENGERS:
+  1. a Designers Republic sleeve, where pseudo-corporate roundels, hazard sans, faux-kanji, and registration marks compose hostile-brand information noise that is itself immaculate branding
+     SOURCE ID: tdr-info-noise-sleeve
+     CREATIVE SPARK: A magenta target grid locks over black; warning glyphs, barcode fragments, and a fake product code crowd the edge while one enormous condensed word shouts through the noise.
+     SYSTEM GRAMMAR:
+       - Palette/material: magenta, safety orange, and white on absolute black, flat print surfaces with no gradients; density itself is the material
+       - Type/composition: condensed hazard grotesk in stacked lockups, faux-kanji and registration marks as ornament, everything gridded tight to the edge
+       - Topology/navigation: Move by product code, by roundel family, and by warning class.
+       - Controls/state: Stamp, register, and certify; active states add another layer of official-looking marks.
+       - Responsive/motion: Density reflows by dropping ornament layers in declared steps; the one shouting word never shrinks.
+     WEB LEVERAGE: Layered SVG mark systems with density tiers driven by container queries
+     QUALITY BAR: board https://impeccable.style/worlds/cards/tdr-info-noise-sleeve.webp ┬╖ hero https://impeccable.style/worlds/cards/tdr-info-noise-sleeve-hero.webp
+  2. a reference-setting page drawn by a ruling engine, two short-measure text columns twinned around a fixed centre rail of keys, the whole block held small inside a wide annotation margin where the apparatus hangs and overlaps the block's edge
+     SOURCE ID: rw-centre-rail-reference-setting
+     CREATIVE SPARK: A wide-margin edition open under a lamp: two dense columns of small roman, a hairline channel of vermilion letter-keys running down between them, and four inches of bare paper all around where a previous reader has ruled one note and bracketed it back into the line it belongs to.
+     SYSTEM GRAMMAR:
+       - Palette/material: iron-black ink and one rubric vermilion on unbleached bone, three values only. A ruling engine draws every rule, bracket and detent at one device pixel.
+       - Type/composition: Brevier body is Miller Text 17 to 19px on 1.5 leading, two columns of 34 to 40 characters round a 6 to 9 character rail. Pearl 11px small caps sets apparatus.
+       - Topology/navigation: the centre rail is the one moving part, carrying keys and square detents cut wherever the flow changes footing. Global nav is a keyed list in the margin.
+       - Controls/state: states are printed marks. A detent is hairline at rest, filled pressed, run through when disabled, bracketed on focus; spent is a struck bar. No radius anywhere.
+       - Responsive/motion: the block holds its measure and the annotation margin absorbs width; under two columns the rail goes outboard. Motion is a damped single axis, no overshoot.
+     WEB LEVERAGE: The ruling engine is real: a canvas or SVG layer reads live layout boxes and draws every hairline, detent and bracket at one device pixel, re-solving on resize and zoom. The lift relocates in-flow when the margin cannot hold it.
+     QUALITY BAR: board https://impeccable.style/worlds/cards/rw-centre-rail-reference-setting.webp ┬╖ hero https://impeccable.style/worlds/cards/rw-centre-rail-reference-setting-hero.webp
+  3. a newly formed cloud edge diffracting sunlight through similarly sized droplets, with pastel bands shifting as droplet distribution and angular distance from the sun change
+     SOURCE ID: clouds-storms-auroras-iridescent-cloud-edge
+     CREATIVE SPARK: A plain white cloud grows a narrow crown of mint, rose, and violet; minutes later the droplets broaden in size and the entire spectral edge dissolves.
+     SYSTEM GRAMMAR:
+       - Palette/material: plain cloud white ground with slate gray body ink, a narrow fringe of mint, rose, and violet at the edge, violet marking the active band
+       - Type/composition: quiet thin humanist sans, wide white margins, color confined to hairline band edges while the text field stays achromatic
+       - Topology/navigation: Move between cloud body, droplet-size sample, angular color band, observation moment, and competing explanation.
+       - Controls/state: Adjust droplet distribution, compare images, mark uncertainty, and inspect absent, forming, vivid, and dispersed states.
+       - Responsive/motion: Stack image, spectrum, and droplet evidence on phones; never require device motion or direct viewing near the sun.
+     WEB LEVERAGE: Local image analysis, a droplet-diffraction model, and shareable comparison states let users test observed bands against particle-size hypotheses while retaining safe-viewing guidance and semantic spectra.
+     QUALITY BAR: board https://impeccable.style/worlds/cards/clouds-storms-auroras-iridescent-cloud-edge.webp ┬╖ hero https://impeccable.style/worlds/cards/clouds-storms-auroras-iridescent-cloud-edge-hero.webp
+  4. an industrial streetwear grammar, ordinary words set in straight quotation marks, zip-tie tags left on, diagonal hazard stripes crossing white cotton and black nylon
+     SOURCE ID: textiles-weave-drape-fashion-industrial-quote-grammar
+     CREATIVE SPARK: You lift a jacket and the zip-tie tag clacks against the hanger; across the back, giant caps in straight quotes name the obvious, and a hazard stripe runs diagonally under the fluorescent light of the stockroom.
+     SYSTEM GRAMMAR:
+       - Palette/material: stockroom white cotton and black nylon as ground and ink, black-on-white hazard diagonals for structure, safety orange zip-tie tags as the accent
+       - Type/composition: bold industrial caps inside straight quotation marks naming the obvious, label plates set square on the grid like stenciled crates
+       - Topology/navigation: every zone is labeled with its literal quoted name, wayfinding is reading, and the hazard stripe runs diagonally under whatever matters
+       - Controls/state: the active item keeps its orange zip tie on, toggles read "ON" and "OFF" in quotes, disabled things take the diagonal stripe across them
+       - Responsive/motion: stripes hold 45 degrees at every width while label plates stack; motion is a tag swinging once on selection
+     WEB LEVERAGE: css repeating-linear-gradient hazard stripes at 45deg, generated content wrapping every label in straight quotes via ::before and ::after
+     QUALITY BAR: board https://impeccable.style/worlds/cards/textiles-weave-drape-fashion-industrial-quote-grammar.webp ┬╖ hero https://impeccable.style/worlds/cards/textiles-weave-drape-fashion-industrial-quote-grammar-hero.webp
+  5. A monitoring surface built as a depot destination blind: bias-cut courses of dyed duck cloth stacked in a roll stepping under one fixed window, where anything wrong is the course stopped mid-step, showing two half-legends meeting across a single seam.
+     SOURCE ID: operate-c-depot-blind-courses
+     CREATIVE SPARK: A blind lifted onto the depot bench at 4:40 a.m. and lit from behind: green duck cloth halted between two courses, the top half of one destination and the bottom half of the next meeting at one seam, every thread glowing through the chrome-yellow letters.
+     SYSTEM GRAMMAR:
+       - Palette/material: three dyes only: bottle-green duck cloth drenched, chrome-yellow legends, bleached calico carries all prose; foreign images are matted on cloth and never tinted.
+       - Type/composition: one condensed grotesque, caps, one size; panels cut on a 12-degree bias, type level inside; rank is inversion: the lead panel alone prints dark on pale cloth.
+       - Topology/navigation: content rides a roll of stacked cloth courses that step under one fixed window inset from the trim; a punched eyelet tape down one edge is the index.
+       - Controls/state: controls take no dye, only stitch, punch and relief; a fault stops its row mid-step, showing two half-legends over one seam; stale wears thin, dead bares the weave.
+       - Responsive/motion: nothing glides; every change snaps one course, overshoots, settles; narrow screens drop courses, never shrink type; lit from behind so the weave stays visible.
+     WEB LEVERAGE: Build the step for real: any changing cell is a strip translated in whole line-heights with a one-step overshoot, and a stalled half-step showing two clipped legends across a seam is the only error state.
+     QUALITY BAR: board https://impeccable.style/worlds/cards/operate-c-depot-blind-courses.webp ┬╖ hero https://impeccable.style/worlds/cards/operate-c-depot-blind-courses-hero.webp
+  6. a rail concourse split-flap board at rush hour, where cascading letter flaps, platform columns, and departure rhythm hold a thousand travelers in one gaze
+     SOURCE ID: signals-instruments-split-flap-concourse
+     CREATIVE SPARK: A ripple of clacks runs the board, Milan becomes Marseille, and every head in the concourse lifts at the same half-second.
+     SYSTEM GRAMMAR:
+       - Palette/material: matte black flap faces with white paint letters, brushed steel board frame as ground, amber row lamps for delay; cancelled rows drop to dim red type
+       - Type/composition: one condensed white sans on every flap, characters in fixed cells, destinations in caps; the board's ruled rows and columns are the entire composition
+       - Topology/navigation: rows are live entities ranked by time; columns never move, only their flaps.
+       - Controls/state: changes cascade character by character; delayed and cancelled states restyle the row without breaking the grid.
+       - Responsive/motion: the board narrows column priority on phones; the cascade collapses to a single update under
+     WEB LEVERAGE: WebSocket-fed rows animate per-character flips while remaining a semantic, sortable table underneath.
+     QUALITY BAR: board https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse.webp ┬╖ hero https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse-hero.webp
+Fuse each challenger before judging it: the challenger supplies the form
+  and its system grammar, the product supplies every fact, and clarity wins
+  conflicts. Weigh the fused result against the assigned direction on exactly
+  two axes, audience identification and product clarity. Losing to strong
+  grounded material is a valid outcome; beating a thin or tool-monoculture
+  list is the point. A fused challenger that wins both axes becomes the build.
+  Close the weighing with a verdict per challenger, decided before any
+  borrowing is considered: wins (beats the assigned direction on both axes),
+  competitive (holds one axis), or declined (loses both). A declined
+  challenger is not spent: name the one discipline of its system the assigned
+  direction lacks, and raise the assigned direction to match before
+  presenting it. A donation transfers ambition and system discipline, never
+  the challenger's clothes; one world owns the page. Write each raise as its
+  own named line on the presented direction, and carry every verdict, kept
+  line, and raise into the decision page payload.
+When you can view images, open the QUALITY BAR board and hero for any
+challenger you weigh seriously and for the world you build. They exist as a
+craft bar, the finish level and commitment the build is expected to reach,
+never as a mockup to copy; your surface serves this product, not that render.
+PRODUCT.md and explicit incumbent brand commitments constrain every direction.
+The seed never chooses exact colors, fonts, tokens, or a user preference, and
+it never permits the world and first surface to be selected independently.
+The CREATIVE SPARK is a complete visual system, not a theme or decorative
+reference. Translate every supplied system rule into the product: palette and
+material, type and composition, topology, controls and states, and adaptation.
+Keep the source's visible character, scale, rhythm, and interaction instead of
+reducing vivid grammar to generic nouns. When the source is already a credible
+interface language, commit to it across navigation, content, controls, and
+states. Otherwise keep a literal carrier only when it becomes functional.
+Ambitious motion, spatial media, or interaction is welcome when it strengthens
+the product without weakening semantics, performance, or fallback behavior.
+TELEMETRY: after the user's choice resolves, rerun this script once with
+  --kind <assigned|pick|challenger|canon> --from b20091fa --scope direction --mode operate,
+  adding --chosen <challenger-id> when a dealt challenger won and keeping
+  --register <safer|bolder> when the resolved round came from a steered hand.
+  One ping per resolved attended round. The ping is anonymous, the card kind
+  plus the catalog id when one won; your grounded candidates' names never
+  leave the machine, and the ping is skipped automatically when DO_NOT_TRACK
+  or IMPECCABLE_NO_TELEMETRY is set.
+A user- or brief-pinned decision beats the roll, always.
+ASSIGNED INDEX (restated for truncated readers): 6. Build candidate
+6 of your own grounded list; seed key b20091fa.
