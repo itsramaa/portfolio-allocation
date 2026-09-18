@@ -140,7 +140,7 @@ export function Dashboard({
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+        <div className="stat-grid">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="surface-card" style={{ padding: '1.25rem 1.5rem' }}>
               <Skeleton w="60%" h="12px" />
@@ -148,7 +148,7 @@ export function Dashboard({
             </div>
           ))}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1rem' }}>
+        <div className="charts-grid">
           <div className="surface-card" style={{ padding: '1.5rem', height: 300 }}><Skeleton w="100%" h="100%" /></div>
           <div className="surface-card" style={{ padding: '1.5rem', height: 300 }}><Skeleton w="100%" h="100%" /></div>
         </div>
@@ -223,7 +223,7 @@ export function Dashboard({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
       {/* ── Stat row ─────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: alphaAssets.length > 0 ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)', gap: '1rem' }}>
+      <div className={alphaAssets.length > 0 ? 'stat-grid-5' : 'stat-grid'}>
         {/* Total Value */}
         <div className="surface-card fade-up" style={{ padding: '1.25rem 1.5rem', gridColumn: 'span 1' }} title={`= ${totalUsdFormatted} USD`}>
           <div style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
@@ -284,7 +284,7 @@ export function Dashboard({
       </div>
 
       {/* ── Charts row ───────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '1rem' }}>
+      <div className="charts-grid">
 
         {/* Donut Chart */}
         <div className="surface-card fade-up" style={{ padding: '1.5rem' }}>

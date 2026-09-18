@@ -201,3 +201,161 @@ input, textarea {
   outline: 2px solid oklch(80% 0.18 85 / 0.7);
   outline-offset: 2px;
 }
+
+/* ─── Responsive grid helpers ─── */
+.stat-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, 1fr);
+}
+.stat-grid-5 {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(5, 1fr);
+}
+.charts-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr 1.6fr;
+}
+
+/* ─── Mobile bottom nav bar ─── */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: oklch(11% 0.012 240);
+  border-top: 1px solid oklch(100% 0 0 / 0.09);
+  padding: 0.5rem 0 env(safe-area-inset-bottom, 0.25rem);
+}
+.mobile-nav-inner {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+.mobile-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.375rem;
+  color: oklch(55% 0.01 240);
+  font-size: 0.6rem;
+  font-family: "Geist", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color 0.15s, background 0.15s;
+  min-width: 48px;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-nav-btn.active {
+  color: oklch(80% 0.18 85);
+}
+.mobile-nav-btn:active {
+  background: oklch(80% 0.18 85 / 0.1);
+}
+
+/* ─── Sidebar overlay for mobile ─── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: oklch(5% 0.01 240 / 0.7);
+  backdrop-filter: blur(2px);
+}
+
+/* ─── Mobile hamburger button ─── */
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: oklch(75% 0.01 240);
+  padding: 0.4rem;
+  border-radius: 0.25rem;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ─── Table row hover ─── */
+.table-row-hover:hover {
+  background: oklch(100% 0 0 / 0.025);
+}
+
+/* ─── Responsive breakpoints ─── */
+@media (max-width: 1024px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .stat-grid-5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Show mobile nav, hide desktop sidebar */
+  .mobile-nav {
+    display: block;
+  }
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Sidebar becomes a slide-in drawer on mobile */
+  #sidebar-nav {
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  #sidebar-nav.mobile-open {
+    transform: translateX(0);
+  }
+  .sidebar-overlay.mobile-open {
+    display: block;
+  }
+  /* Main area: no left margin on mobile, padding for bottom nav */
+  .app-main {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 1rem 1rem 5rem !important;
+  }
+  /* Stat grids stack to 2 columns */
+  .stat-grid,
+  .stat-grid-5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  /* Charts stack */
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+  /* Header: stack on narrow screens */
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.75rem;
+  }
+  .app-header-actions {
+    width: 100%;
+    justify-content: flex-start !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-grid,
+  .stat-grid-5 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .app-main {
+    padding: 0.75rem 0.75rem 5rem !important;
+  }
+}

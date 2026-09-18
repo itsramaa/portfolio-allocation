@@ -43,6 +43,7 @@ export default function App() {
   const [archivedAssets, setArchivedAssets] = useState<Set<string>>(() => loadArchivedAssets())
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false)
 
   // Currency & FX rates
   const [currency, setCurrency] = useState<CurrencyCode>(() => loadSelectedCurrency())
@@ -277,19 +278,34 @@ export default function App() {
 
   const sidebarWidth = sidebarCollapsed ? 68 : 240
 
+  // Close mobile sidebar when tab changes
+  const handleTabChange = (tab: AppTab) => {
+    setActiveTab(tab)
+    setMobileSidebarOpen(false)
+  }
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'oklch(10% 0.01 240)' }}>
+      {/* Mobile sidebar overlay */}
+      <div
+        className={`sidebar-overlay${mobileSidebarOpen ? ' mobile-open' : ''}`}
+        onClick={() => setMobileSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
       {/* Fixed Left Navigation Bar */}
       <Sidebar
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         connectionStatus={connectionStatus}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+        mobileOpen={mobileSidebarOpen}
       />
 
       {/* Main Content Area - dynamically margined so it never overlaps the sidebar */}
       <main
+        className="app-main"
         style={{
           flex: 1,
           minWidth: 0,
@@ -303,8 +319,20 @@ export default function App() {
         }}
       >
         {/* Top Header Bar */}
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
+        <header className="app-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {/* Mobile hamburger */}
+            <button
+              type="button"
+              className="mobile-menu-btn"
+              aria-label="Open navigation menu"
+              onClick={() => setMobileSidebarOpen(o => !o)}
+            >
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <span style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#F0B90B' }}>
                 BINANCE
@@ -323,12 +351,12 @@ export default function App() {
             </div>
             <p style={{ fontSize: '0.78rem', color: 'oklch(50% 0.01 240)', marginTop: '0.2rem' }}>
               {lastRefreshed ? `Last updated: ${new Date(lastRefreshed).toLocaleTimeString()}` : 'Connecting…'}
-              {' · '}Auto-syncs every 60s
               {' · '}Currency: <strong>{currency}</strong>
             </p>
           </div>
+          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div className="app-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <button
               id="refresh-button"
               type="button"
@@ -460,6 +488,31 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Mobile bottom navigation bar */}
+      <nav className="mobile-nav" aria-label="Mobile navigation">
+        <div className="mobile-nav-inner">
+          {([
+            { id: 'dashboard' as AppTab, label: 'Dashboard', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25V18z"/></svg> },
+            { id: 'inject' as AppTab, label: 'Inject', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg> },
+            { id: 'rebalance' as AppTab, label: 'Rebalance', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg> },
+            { id: 'history' as AppTab, label: 'History', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
+            { id: 'settings' as AppTab, label: 'Settings', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg> },
+          ] as const).map(item => (
+            <button
+              key={item.id}
+              type="button"
+              className={`mobile-nav-btn${activeTab === item.id ? ' active' : ''}`}
+              onClick={() => handleTabChange(item.id)}
+              aria-label={item.label}
+              aria-current={activeTab === item.id ? 'page' : undefined}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   )
 }

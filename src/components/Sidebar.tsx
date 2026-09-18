@@ -35,9 +35,10 @@ interface SidebarProps {
   connectionStatus: ConnectionStatus
   collapsed: boolean
   onToggleCollapse: () => void
+  mobileOpen?: boolean
 }
 
-export function Sidebar({ activeTab, onTabChange, connectionStatus, collapsed, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, connectionStatus, collapsed, onToggleCollapse, mobileOpen }: SidebarProps) {
   const statusColor = {
     connected: '#22c55e',
     error: '#ef4444',
@@ -55,6 +56,7 @@ export function Sidebar({ activeTab, onTabChange, connectionStatus, collapsed, o
   return (
     <aside
       id="sidebar-nav"
+      className={mobileOpen ? 'mobile-open' : ''}
       style={{
         width: collapsed ? 68 : 240,
         height: '100vh',
