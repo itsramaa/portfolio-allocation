@@ -245,9 +245,29 @@ export async function fetch24hChange(symbols: string[]): Promise<Record<string, 
   return result
 }
 
-// ─── Fetch Alpha token list (public endpoint) ───────────────────────────────
-// According to official docs, this endpoint is public and does NOT require authentication
-export async function fetchAlphaTokenList(_creds: ApiCredentials): Promise<string[]> {
+export interface BinanceAlphaToken {
+  tokenId: string
+  chainId: string
+  chainName: string
+  contractAddress: string
+  name: string
+  symbol: string
+  iconUrl: string
+  price: number
+  percentChange24h: number
+  alphaId: string
+}
+
+export interface BinanceAlphaTicker {
+  symbol: string
+  priceChangePercent: number
+  lastPrice: number
+  volume: number
+  quoteVolume: number
+}
+
+// ─── Fetch full list of Binance Alpha tokens with live prices (public) ──────
+export async function fetchAlphaTokenList(_creds?: ApiCredentials | null): Promise<BinanceAlphaToken[]> {
   try {
     const res = await fetch('/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list')
 
@@ -257,18 +277,59 @@ export async function fetchAlphaTokenList(_creds: ApiCredentials): Promise<strin
 
     const data = await res.json()
     
-    // Extract symbols from response (data.data is an array of token objects)
     if (data && data.success && Array.isArray(data.data)) {
-      const symbols = data.data
-        .map((item: any) => item.symbol || item.alphaId?.replace('ALPHA_', ''))
-        .filter(Boolean)
-      console.log(`Fetched ${symbols.length} Alpha tokens from public API`)
-      return symbols
+      const tokens: BinanceAlphaToken[] = data.data.map((item: any) => ({
+        tokenId: item.tokenId || '',
+        chainId: item.chainId || '',
+        chainName: item.chainName || '',
+        contractAddress: item.contractAddress || '',
+        name: item.name || '',
+        symbol: (item.symbol || item.alphaId?.replace('ALPHA_', '') || '').toUpperCase(),
+        iconUrl: item.iconUrl || '',
+        price: parseFloat(item.price) || 0,
+        percentChange24h: parseFloat(item.percentChange24h) || 0,
+        alphaId: item.alphaId || '',
+      }))
+      console.log(`Fetched ${tokens.length} Alpha tokens with live prices from Binance API`)
+      return tokens
     }
     
     return []
   } catch (err) {
     console.error('Failed to fetch Alpha token list:', err)
-    throw err
+    return []
+  }
+}
+
+// ─── Fetch 24h ticker for specific Alpha token by alphaId / symbol ────────
+export async function fetchAlphaTicker(symbolOrAlphaId: string): Promise<BinanceAlphaTicker | null> {
+  try {
+    let sym = symbolOrAlphaId.toUpperCase()
+    if (!sym.endsWith('USDT')) {
+      sym = `${sym}USDT`
+    }
+    const res = await fetch(`/bapi/defi/v1/public/alpha-trade/ticker?symbol=${encodeURIComponent(sym)}`)
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`)
+    }
+
+    const data = await res.json()
+    
+    if (data && data.success && data.data) {
+      const d = data.data
+      return {
+        symbol: d.symbol || sym,
+        priceChangePercent: parseFloat(d.priceChangePercent) || 0,
+        lastPrice: parseFloat(d.lastPrice) || 0,
+        volume: parseFloat(d.volume) || 0,
+        quoteVolume: parseFloat(d.quoteVolume) || 0,
+      }
+    }
+    
+    return null
+  } catch (err) {
+    console.error(`Failed to fetch Alpha ticker for ${symbolOrAlphaId}:`, err)
+    return null
   }
 }

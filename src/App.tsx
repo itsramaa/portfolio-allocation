@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { AppTab, ConnectionStatus, ApiCredentials, Asset, TargetAllocation, CurrencyCode, FxRates, AlphaAssetConfig } from './types'
 import { loadCredentials, loadTargetAllocation, saveTargetAllocation, saveSnapshot, clearCredentials, loadAlphaAssets, saveAlphaAssets, loadArchivedAssets, saveArchivedAssets } from './storage'
-import { fetchAccountBalances, fetchAllPrices, fetchAlphaTokenList } from './binanceApi'
+import { fetchAccountBalances, fetchAllPrices, fetchAlphaTokenList, type BinanceAlphaToken } from './binanceApi'
 import { buildAssets, updateAlphaSymbols } from './portfolio'
 import { loadSelectedCurrency, saveSelectedCurrency, loadCachedRates, fetchLiveFxRates } from './currency'
 
@@ -55,6 +55,7 @@ export default function App() {
   const [isDemoMode, setIsDemoMode] = useState<boolean>(() => !loadCredentials())
 
   const [assets, setAssets] = useState<Asset[]>([])
+  const [alphaTokenList, setAlphaTokenList] = useState<BinanceAlphaToken[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(null)
@@ -64,28 +65,26 @@ export default function App() {
     fetchLiveFxRates().then(rates => setFxRates(rates)).catch(() => {})
   }, [])
 
-  // ─── Alpha token list ─────────────────────────────────────────────────────────
-  // Fetch Alpha tokens from authenticated API, fallback to hardcoded list
+  // ─── Alpha token list (public API) ─────────────────────────────────────────
   useEffect(() => {
-    const fetchAlphaTokens = async () => {
-      if (!credentials) {
-        console.log('No credentials, using fallback Alpha symbols list')
-        return
-      }
-
+    const loadAlpha = async () => {
       try {
         console.log('Fetching Alpha token list from Binance API...')
-        const symbols = await fetchAlphaTokenList(credentials)
-        console.log(`Loaded ${symbols.length} Alpha tokens from Binance API`)
-        updateAlphaSymbols(new Set(symbols))
+        const tokens = await fetchAlphaTokenList()
+        setAlphaTokenList(tokens)
+        const symbolSet = new Set<string>()
+        for (const t of tokens) {
+          symbolSet.add(t.symbol)
+          if (t.alphaId) symbolSet.add(t.alphaId.toUpperCase())
+        }
+        updateAlphaSymbols(symbolSet)
+        console.log(`Loaded ${tokens.length} Alpha tokens from Binance API into detector`)
       } catch (err) {
-        console.log('Failed to fetch Alpha token list, using fallback list:', err)
-        // Fallback list is already initialized in portfolio.ts
+        console.warn('Failed to fetch Alpha token list:', err)
       }
     }
-
-    fetchAlphaTokens()
-  }, [credentials])
+    loadAlpha()
+  }, [])
 
   // ─── Fetch live data from Binance API ──────────────────────────────────────
   const loadLiveData = useCallback(async (
@@ -97,10 +96,22 @@ export default function App() {
     setError(null)
     setConnectionStatus('loading')
     try {
-      const [balances, prices] = await Promise.all([
+      const [balances, spotPrices, alphaTokens] = await Promise.all([
         fetchAccountBalances(creds),
         fetchAllPrices(),
+        fetchAlphaTokenList(),
       ])
+
+      const prices: Record<string, number> = { ...spotPrices }
+      for (const t of alphaTokens) {
+        if (t.price > 0) {
+          prices[`${t.symbol}USDT`] = t.price
+          prices[t.symbol] = t.price
+          if (t.alphaId) {
+            prices[`${t.alphaId}USDT`] = t.price
+          }
+        }
+      }
 
       const built = buildAssets(balances, prices, currentTargets, currentAlpha)
       setAssets(built)
@@ -480,6 +491,7 @@ export default function App() {
             rates={fxRates.rates}
             ratesLastUpdated={fxRates.lastUpdated}
             alphaAssets={alphaAssets}
+            alphaTokenList={alphaTokenList}
             onCredentialsChange={handleCredentialsChange}
             onTargetsChange={handleTargetsChange}
             onCurrencyChange={handleCurrencyChange}

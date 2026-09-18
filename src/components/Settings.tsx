@@ -1,6 +1,7 @@
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
 import { useState, useEffect } from 'react'
 import type { ApiCredentials, Asset, TargetAllocation, CurrencyCode, AlphaAssetConfig } from '../types'
+import type { BinanceAlphaToken } from '../binanceApi'
 import { saveCredentials, saveTargetAllocation, clearCredentials, saveAlphaAssets } from '../storage'
 import { testConnection } from '../binanceApi'
 import { CURRENCIES, formatCurrencyValue } from '../currency'
@@ -13,6 +14,7 @@ interface SettingsProps {
   rates: Record<string, number>
   ratesLastUpdated: number
   alphaAssets: AlphaAssetConfig[]
+  alphaTokenList?: BinanceAlphaToken[]
   onCredentialsChange: (creds: ApiCredentials | null) => void
   onTargetsChange: (targets: TargetAllocation) => void
   onCurrencyChange: (currency: CurrencyCode) => void
@@ -39,6 +41,7 @@ export function Settings({
   rates,
   ratesLastUpdated,
   alphaAssets = [],
+  alphaTokenList = [],
   onCredentialsChange,
   onTargetsChange,
   onCurrencyChange,
@@ -646,21 +649,66 @@ export function Settings({
           flexDirection: 'column',
           gap: '0.75rem',
         }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#C084FC' }}>
-            Add / Update Binance Alpha Token
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#C084FC' }}>
+              Add / Update Binance Alpha Token
+            </div>
+            {alphaTokenList && alphaTokenList.length > 0 && (
+              <div style={{ fontSize: '0.68rem', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                Binance Alpha API Live ({alphaTokenList.length} tokens)
+              </div>
+            )}
           </div>
+
+          {/* Quick Dropdown Select from Binance Alpha API */}
+          {alphaTokenList && alphaTokenList.length > 0 && (
+            <div>
+              <label style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', display: 'block', marginBottom: '0.25rem' }}>
+                Select Token from Binance Alpha List (Auto-populates Live Price)
+              </label>
+              <select
+                className="select select-sm w-full mono"
+                onChange={e => {
+                  const selected = alphaTokenList.find(t => t.symbol === e.target.value)
+                  if (selected) {
+                    setAlphaSymbol(selected.symbol)
+                    setAlphaName(selected.name || selected.symbol)
+                    if (selected.price > 0) setAlphaPrice(String(selected.price))
+                  }
+                }}
+                defaultValue=""
+                style={{ fontSize: '0.8rem' }}
+              >
+                <option value="" disabled>-- Select Alpha Token from Binance API --</option>
+                {alphaTokenList.map(t => (
+                  <option key={t.tokenId || t.alphaId || t.symbol} value={t.symbol}>
+                    {t.symbol} ({t.name}) — ${t.price > 0 ? t.price : 'Auto'} [{t.alphaId || 'ALPHA'}]
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
             <div>
               <label style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', display: 'block', marginBottom: '0.25rem' }}>
-                Symbol (e.g. PONS)
+                Symbol (e.g. FARTCOIN, KOMA)
               </label>
               <input
                 type="text"
                 className="input input-sm w-full mono"
-                placeholder="PONS"
+                placeholder="FARTCOIN"
                 value={alphaSymbol}
-                onChange={e => setAlphaSymbol(e.target.value.toUpperCase())}
+                onChange={e => {
+                  const sym = e.target.value.toUpperCase()
+                  setAlphaSymbol(sym)
+                  const match = alphaTokenList?.find(t => t.symbol === sym)
+                  if (match) {
+                    if (match.name) setAlphaName(match.name)
+                    if (match.price > 0) setAlphaPrice(String(match.price))
+                  }
+                }}
               />
             </div>
             <div>
@@ -670,7 +718,7 @@ export function Settings({
               <input
                 type="text"
                 className="input input-sm w-full"
-                placeholder="Ponke on Sol"
+                placeholder="Fartcoin"
                 value={alphaName}
                 onChange={e => setAlphaName(e.target.value)}
               />
@@ -699,7 +747,7 @@ export function Settings({
               <input
                 type="number"
                 className="input input-sm w-full mono"
-                placeholder="0.15"
+                placeholder="Live from API"
                 value={alphaPrice}
                 onChange={e => setAlphaPrice(e.target.value)}
                 min="0"
