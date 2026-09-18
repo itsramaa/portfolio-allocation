@@ -34,8 +34,16 @@ export function saveAlphaAssets(assets: import('./types').AlphaAssetConfig[]): v
 export function loadCredentials(): ApiCredentials | null {
   try {
     const raw = localStorage.getItem(KEYS.creds)
-    return raw ? JSON.parse(raw) : null
-  } catch { return null }
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+
+  const envApiKey = import.meta.env.VITE_BINANCE_API_KEY
+  const envApiSecret = import.meta.env.VITE_BINANCE_API_SECRET
+  if (envApiKey && envApiSecret) {
+    return { apiKey: envApiKey, apiSecret: envApiSecret }
+  }
+
+  return null
 }
 
 export function saveCredentials(creds: ApiCredentials): void {

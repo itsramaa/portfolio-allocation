@@ -3,11 +3,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VITE_BINANCE_API_KEY: ${VITE_BINANCE_API_KEY}
+        VITE_BINANCE_API_SECRET: ${VITE_BINANCE_API_SECRET}
     image: portfolio-allocation:latest
     container_name: portfolio-allocation
     restart: unless-stopped
     ports:
       - "0.0.0.0:3000:80"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
     healthcheck:
