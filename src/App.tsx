@@ -188,9 +188,12 @@ export default function App() {
     saveTargetAllocation(newTargets)
     setAssets(prev => {
       const total = prev.reduce((s, a) => s + a.usdtValue, 0)
+      const otherTargetPct = newTargets['OTHER'] ?? 0
       return prev.map(a => {
-        const targetPct = newTargets[a.symbol] ?? 0
         const currentPct = total > 0 ? (a.usdtValue / total) * 100 : 0
+        // Mirror buildAssets: explicit target → fallback to OTHER → 0
+        let targetPct = newTargets[a.symbol] ?? 0
+        if (targetPct === 0 && otherTargetPct > 0) targetPct = otherTargetPct
         return {
           ...a,
           targetPct,
@@ -199,6 +202,7 @@ export default function App() {
       })
     })
   }
+
 
 
 
