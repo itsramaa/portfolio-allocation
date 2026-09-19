@@ -1,4 +1,23 @@
 services:
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: portfolio-allocation-api:latest
+    container_name: portfolio-allocation-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3001
+      DATA_DIR: /app/data
+      DB_PATH: /app/data/portfolio.db
+      NODE_ENV: production
+    volumes:
+      - ./server/data:/app/data
+    expose:
+      - "3001"
+
   app:
     build:
       context: .
@@ -9,6 +28,8 @@ services:
     image: portfolio-allocation:latest
     container_name: portfolio-allocation
     restart: unless-stopped
+    depends_on:
+      - api
     ports:
       - "0.0.0.0:3000:80"
     extra_hosts:
@@ -16,10 +37,6 @@ services:
       - "www.binance.com:108.158.2.161"
       - "fapi.binance.com:108.158.2.161"
       - "dapi.binance.com:108.158.2.161"
-    env_file:
-      - .env
-    environment:
-      - NODE_ENV=production
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
       interval: 30s

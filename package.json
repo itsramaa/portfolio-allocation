@@ -7,7 +7,7 @@
     "dev": "concurrently -n \"fe,be\" -c \"cyan.bold,magenta.bold\" \"vite\" \"npm run server\"",
     "dev:fe": "vite",
     "dev:server": "npm run server",
-    "server": "cd server && go run ./cmd/api",
+    "server": "cd server && air",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
