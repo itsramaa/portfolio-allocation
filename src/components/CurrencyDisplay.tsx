@@ -1,6 +1,6 @@
 // ─── Currency Display with USD Tooltip Component ─────────────────────────────
 import type { CurrencyCode } from '../types'
-import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
+import { convertUSDToCurrency, formatCurrencyValue } from '../utils/currency'
 
 interface CurrencyDisplayProps {
   usdValue: number

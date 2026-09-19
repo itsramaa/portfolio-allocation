@@ -1,27 +1,12 @@
 // ─── History Tab ─────────────────────────────────────────────────────────────
-import { useState } from 'react'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from 'recharts'
-import type { PortfolioSnapshot, CurrencyCode } from '../types'
-import { loadHistory, saveSnapshot, getWibDailyCycleKey } from '../storage'
-import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
+import type { CurrencyCode } from '../types'
+import { getWibDailyCycleKey, formatWibDateTime } from '../utils/storage'
+import { convertUSDToCurrency, formatCurrencyValue } from '../utils/currency'
+import { useHistory } from '../hooks/useHistory'
 import { CurrencyDisplay } from './CurrencyDisplay'
-
-export function formatWibDateTime(timestamp: number): string {
-  try {
-    return new Intl.DateTimeFormat('id-ID', {
-      timeZone: 'Asia/Jakarta',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(timestamp)) + ' WIB'
-  } catch {
-    return new Date(timestamp).toLocaleString()
-  }
-}
 
 interface HistoryProps {
   currentTotal: number
@@ -36,65 +21,10 @@ export function History({
   currency = 'USD',
   rates = {},
 }: HistoryProps) {
-  const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>(() => loadHistory())
-  const isUSD = currency === 'USD'
-
-  const handleCaptureSnapshot = () => {
-    const snap: PortfolioSnapshot = {
-      timestamp: Date.now(),
-      totalUSDT: currentTotal,
-      btcPrice,
-    }
-    saveSnapshot(snap)
-    setSnapshots(loadHistory())
-  }
-
-  const handleSeedDemo = () => {
-    const now = Date.now()
-    const dayMs = 24 * 3600 * 1000
-    const demo: PortfolioSnapshot[] = []
-    const base = currentTotal > 0 ? currentTotal * 0.75 : 10000
-    for (let i = 14; i >= 0; i--) {
-      const variance = 1 + (Math.sin(i * 0.8) * 0.08) + ((14 - i) * 0.018)
-      demo.push({
-        timestamp: now - i * dayMs,
-        totalUSDT: Math.round(base * variance * 100) / 100,
-        btcPrice: 65000 + (14 - i) * 800 + Math.sin(i) * 1500,
-      })
-    }
-    localStorage.setItem('portfolio_history', JSON.stringify(demo))
-    setSnapshots(demo)
-  }
-
-  const handleClear = () => {
-    if (window.confirm('Clear all recorded portfolio snapshots?')) {
-      localStorage.removeItem('portfolio_history')
-      setSnapshots([])
-    }
-  }
-
-  const chartData = snapshots.map(s => {
-    const converted = convertUSDToCurrency(s.totalUSDT, currency, rates)
-    let timeLabel = ''
-    try {
-      timeLabel = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', month: 'short', day: 'numeric' }).format(new Date(s.timestamp))
-    } catch {
-      timeLabel = new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-    }
-    return {
-      time: timeLabel,
-      cycleDate: getWibDailyCycleKey(s.timestamp),
-      fullDate: formatWibDateTime(s.timestamp),
-      convertedVal: converted,
-      totalUSDT: s.totalUSDT,
-      btcPrice: s.btcPrice,
-    }
-  })
-
-  const minVal = chartData.length ? Math.min(...chartData.map(s => s.convertedVal)) * 0.95 : 0
-  const maxVal = chartData.length ? Math.max(...chartData.map(s => s.convertedVal)) * 1.05 : 100
-
-  const currentTotalFormatted = formatCurrencyValue(convertUSDToCurrency(currentTotal, currency, rates), currency)
+  const {
+    snapshots, captureSnapshot: handleCaptureSnapshot, seedDemo: handleSeedDemo,
+    clearSnapshots: handleClear, chartData, minVal, maxVal, isUSD, currentTotalFormatted,
+  } = useHistory(currentTotal, btcPrice, currency, rates)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }} className="fade-up">

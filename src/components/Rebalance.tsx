@@ -1,18 +1,18 @@
-import { useState, useMemo } from 'react'
+import { useRebalance } from '../hooks/useRebalance'
 import type { Asset, TargetAllocation, CurrencyCode } from '../types'
 import {
-  calculateRebalance,
   fmtUSDT,
   fmtPct,
   assetColor,
+  isFuturesAsset,
   MIN_ORDER_USDT,
   MIN_DRIFT_PORTFOLIO_RATIO,
   MAX_REBALANCE_COST_RATIO,
   REBALANCE_RELATIVE,
   REBALANCE_FLOOR_PP,
-  type RebalanceItem,
-} from '../portfolio'
-import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
+} from '../lib/portfolio'
+import type { RebalanceOrderResponse } from '../services/api'
+import { convertUSDToCurrency, formatCurrencyValue } from '../utils/currency'
 import { CurrencyDisplay } from './CurrencyDisplay'
 
 interface RebalanceProps {
@@ -22,70 +22,41 @@ interface RebalanceProps {
   rates?: Record<string, number>
 }
 
-function ActionBadge({ r }: { r: RebalanceItem }) {
-  // Reserve: soft replenishment note (not a forced rebalance action)
-  if (r.category === 'reserve') {
-    return (
-      <span className="badge badge-sm mono" style={{
-        background: 'oklch(40% 0.15 240 / 0.15)',
-        color: '#60a5fa',
-        border: '1px solid oklch(60% 0.2 240 / 0.3)',
-        fontWeight: 700, fontSize: '0.7rem',
-        padding: '0.2rem 0.6rem', letterSpacing: '0.04em',
-      }}>REPLENISH</span>
-    )
-  }
-
-  const isFutures = r.symbol === 'FUTURES_USDT' || r.symbol.startsWith('FUTURES_')
-  let text = r.action.toUpperCase()
-  let bg = r.action === 'sell' ? 'oklch(239% 0.082 120 / 0.15)' : 'oklch(142% 0.071 120 / 0.15)'
-  let color = r.action === 'sell' ? '#ef4444' : '#22c55e'
-  let border = r.action === 'sell' ? '1px solid oklch(239% 0.082 120 / 0.3)' : '1px solid oklch(142% 0.071 120 / 0.3)'
+function ActionBadge({ order }: { order: RebalanceOrderResponse }) {
+  const isFutures = isFuturesAsset(order.symbol)
+  let displayText: string = order.action
+  let bg = order.action === 'SELL' ? 'oklch(239% 0.082 120 / 0.15)' : 'oklch(142% 0.071 120 / 0.15)'
+  let color = order.action === 'SELL' ? '#ef4444' : '#22c55e'
+  let border = order.action === 'SELL' ? '1px solid oklch(239% 0.082 120 / 0.3)' : '1px solid oklch(142% 0.071 120 / 0.3)'
 
   if (isFutures) {
-    if (r.action === 'buy') {
-      text = 'SPOT ➔ FUT'; bg = 'oklch(160% 0.15 150 / 0.15)'; color = '#02C076'; border = '1px solid #02C07666'
-    } else {
-      text = 'FUT ➔ SPOT'; bg = 'oklch(200% 0.15 60 / 0.15)'; color = '#f59e0b'; border = '1px solid #f59e0b66'
-    }
+    if (order.action === 'BUY') { displayText = 'SPOT ➔ FUT'; bg = 'oklch(160% 0.15 150 / 0.15)'; color = '#02C076'; border = '1px solid #02C07666' }
+    else { displayText = 'FUT ➔ SPOT'; bg = 'oklch(200% 0.15 60 / 0.15)'; color = '#f59e0b'; border = '1px solid #f59e0b66' }
   }
 
   return (
-    <span
-      className="badge badge-sm mono"
-      style={{ background: bg, color, border, fontWeight: 700, fontSize: '0.7rem', padding: '0.2rem 0.6rem', letterSpacing: '0.04em' }}
-    >
-      {text}
+    <span className="badge badge-sm mono" style={{ background: bg, color, border, fontWeight: 700, fontSize: '0.7rem', padding: '0.2rem 0.6rem', letterSpacing: '0.04em' }}>
+      {displayText}
     </span>
   )
 }
 
-function RebalanceRow({
-  r, idx, total, assets, currency, rates, isUSD, dimmed,
+function OrderRow({
+  order, idx, total, assets, currency, rates, isUSD, dimmed,
 }: {
-  r: RebalanceItem; idx: number; total: number
+  order: RebalanceOrderResponse; idx: number; total: number
   assets: Asset[]; currency: CurrencyCode; rates: Record<string, number>; isUSD: boolean; dimmed?: boolean
 }) {
-  const isFutures = r.symbol === 'FUTURES_USDT' || r.symbol.startsWith('FUTURES_')
-  const asset = assets.find(a => a.symbol === r.symbol)
-  const color = asset?.logoColor ?? assetColor(r.symbol, isFutures)
-  const localValue = convertUSDToCurrency(r.amountUSDT, currency, rates)
-  // Reserve rows use a muted blue; trading uses amber; core uses red/green
-  const actionColor = r.category === 'reserve'
-    ? '#60a5fa'
-    : r.category === 'trading'
-      ? (r.action === 'sell' ? '#f59e0b' : '#02C076')
-      : (r.action === 'sell' ? '#ef4444' : '#22c55e')
+  const isFutures = isFuturesAsset(order.symbol)
+  const asset = assets.find(a => a.symbol === order.symbol)
+  const color = asset?.logoColor ?? assetColor(order.symbol, isFutures)
+  const localValue = convertUSDToCurrency(order.amountUSDT, currency, rates)
+  const actionColor = order.action === 'SELL' ? '#ef4444' : '#22c55e'
+  const belowMin = order.amountUSDT < MIN_ORDER_USDT
+  const isTriggered = !belowMin && order.isTriggered === true
 
   return (
-    <tr
-      key={r.symbol}
-      style={{
-        borderBottom: idx < total - 1 ? '1px solid oklch(100% 0 0 / 0.04)' : 'none',
-        opacity: dimmed ? 0.55 : 1,
-      }}
-      className="table-row-hover"
-    >
+    <tr style={{ borderBottom: idx < total - 1 ? '1px solid oklch(100% 0 0 / 0.04)' : 'none', opacity: dimmed ? 0.55 : 1 }} className="table-row-hover">
       <td style={{ padding: '0.8rem 1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <span style={{
@@ -95,20 +66,20 @@ function RebalanceRow({
             fontSize: '0.65rem', fontWeight: 700, color,
             fontFamily: 'JetBrains Mono, monospace', flexShrink: 0,
           }}>
-            {r.symbol.slice(0, 3)}
+            {order.symbol.slice(0, 3)}
           </span>
           <span className="mono" style={{ fontWeight: 700, color: dimmed ? 'oklch(60% 0.01 240)' : 'oklch(92% 0.01 240)' }}>
-            {r.symbol}
+            {order.symbol}
           </span>
         </div>
       </td>
 
       <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-        <ActionBadge r={r} />
+        <ActionBadge order={order} />
       </td>
 
       <td className="mono" style={{ padding: '0.8rem 1rem', textAlign: 'right', fontWeight: 700, color: dimmed ? 'oklch(55% 0.01 240)' : actionColor }}>
-        {fmtUSDT(r.amountUSDT)}
+        {fmtUSDT(order.amountUSDT)}
       </td>
 
       {!isUSD && (
@@ -118,80 +89,36 @@ function RebalanceRow({
       )}
 
       <td className="mono" style={{ padding: '0.8rem 1rem', textAlign: 'right', color: 'oklch(60% 0.01 240)' }}>
-        {r.currentPct.toFixed(1)}%
+        {order.currentPct.toFixed(1)}%
       </td>
 
       <td className="mono" style={{ padding: '0.8rem 1rem', textAlign: 'right', color: dimmed ? 'oklch(45% 0.01 240)' : '#22c55e' }}>
-        {r.targetPct.toFixed(1)}%
+        {order.targetPct.toFixed(1)}%
       </td>
 
       <td style={{ padding: '0.8rem 1.25rem' }}>
-        {r.belowMinOrder ? (
-          r.category === 'core' && r.gateStatus?.gate1Band && r.gateStatus?.gate2Economic ? (
-            <span
-              title={`Memenuhi syarat rebalance (drift $${r.gateStatus.driftValueUSDT.toFixed(2)} ≥ $${r.gateStatus.minDriftUSDT.toFixed(2)}), namun order ($${r.amountUSDT.toFixed(2)}) di bawah minimum order Binance ($${MIN_ORDER_USDT}).`}
-              style={{
-                background: 'oklch(50% 0.18 55 / 0.18)',
-                color: '#f97316',
-                border: '1px solid oklch(70% 0.22 55 / 0.4)',
-                borderRadius: '0.25rem',
-                fontSize: '0.62rem', fontWeight: 700,
-                padding: '0.15rem 0.45rem', letterSpacing: '0.03em',
-                fontFamily: 'JetBrains Mono, monospace',
-                display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-              }}
-            >
-              ⏳ PENDING (&lt;${MIN_ORDER_USDT})
-            </span>
-          ) : (
-            <span style={{
-              background: 'oklch(50% 0.12 85 / 0.15)',
-              color: '#f59e0b',
-              border: '1px solid oklch(70% 0.18 85 / 0.3)',
-              borderRadius: '0.25rem',
-              fontSize: '0.65rem', fontWeight: 700,
-              padding: '0.15rem 0.45rem', letterSpacing: '0.04em',
-              fontFamily: 'JetBrains Mono, monospace',
-            }}>
-              BELOW ${MIN_ORDER_USDT} MIN
-            </span>
-          )
+        {belowMin ? (
+          <span style={{
+            background: 'oklch(50% 0.12 85 / 0.15)', color: '#f59e0b',
+            border: '1px solid oklch(70% 0.18 85 / 0.3)', borderRadius: '0.25rem',
+            fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', letterSpacing: '0.04em',
+            fontFamily: 'JetBrains Mono, monospace',
+          }}>
+            BELOW ${MIN_ORDER_USDT} MIN
+          </span>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-            {r.isTriggered ? (
+            {isTriggered && (
               <span style={{
-                background: 'oklch(40% 0.22 30 / 0.2)',
-                color: '#f87171',
-                border: '1px solid oklch(60% 0.22 30 / 0.4)',
-                borderRadius: '0.2rem',
-                fontSize: '0.6rem', fontWeight: 700,
-                padding: '0.1rem 0.35rem', letterSpacing: '0.04em',
+                background: 'oklch(40% 0.22 30 / 0.2)', color: '#f87171',
+                border: '1px solid oklch(60% 0.22 30 / 0.4)', borderRadius: '0.2rem',
+                fontSize: '0.6rem', fontWeight: 700, padding: '0.1rem 0.35rem', letterSpacing: '0.04em',
                 fontFamily: 'JetBrains Mono, monospace',
               }}>TRIGGERED</span>
-            ) : r.category === 'core' && r.gateStatus?.gate1Band && !r.gateStatus?.gate2Economic ? (
-              <span title={`Drift $${r.gateStatus.driftValueUSDT.toFixed(2)} is below 0.5% portfolio economic threshold ($${r.gateStatus.minDriftUSDT.toFixed(2)})`} style={{
-                background: 'oklch(40% 0.05 240 / 0.2)',
-                color: 'oklch(70% 0.05 240)',
-                border: '1px solid oklch(50% 0.05 240 / 0.3)',
-                borderRadius: '0.2rem',
-                fontSize: '0.6rem', fontWeight: 600,
-                padding: '0.1rem 0.35rem', letterSpacing: '0.02em',
-                fontFamily: 'JetBrains Mono, monospace',
-              }}>&lt;0.5% PORTFOLIO</span>
-            ) : r.category === 'core' && r.gateStatus?.gate1Band && !r.gateStatus?.gate3Cost ? (
-              <span title={`Est. transaction cost ${(r.gateStatus.costRatio * 100).toFixed(1)}% exceeds 1% trade limit`} style={{
-                background: 'oklch(40% 0.12 40 / 0.2)',
-                color: '#fbbf24',
-                border: '1px solid oklch(50% 0.15 40 / 0.3)',
-                borderRadius: '0.2rem',
-                fontSize: '0.6rem', fontWeight: 600,
-                padding: '0.1rem 0.35rem', letterSpacing: '0.02em',
-                fontFamily: 'JetBrains Mono, monospace',
-              }}>HIGH COST</span>
-            ) : null}
+            )}
             <span className="mono" style={{ color: actionColor, fontWeight: 600, fontSize: '0.8rem' }}>
-              {r.action === 'sell' ? '▼ ' : '▲ '}
-              {fmtPct(r.newPct - r.currentPct)}
+              {order.action === 'SELL' ? '▼ ' : '▲ '}
+              {fmtPct(order.diffPct)}
             </span>
           </div>
         )}
@@ -201,28 +128,12 @@ function RebalanceRow({
 }
 
 export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: RebalanceProps) {
-  const [confirmed, setConfirmed] = useState(false)
-  const [showSkipped, setShowSkipped] = useState(false)
-
-  const totalUSDT = useMemo(() => assets.reduce((s, a) => s + a.usdtValue, 0), [assets])
-  const hasTargets = Object.values(targets).some(v => v > 0)
-  const targetSum = Object.values(targets).reduce((s, v) => s + v, 0)
+  const {
+    confirmed, setConfirmed, showSkipped, setShowSkipped, calculating, error, rebalanceResult, setRebalanceResult,
+    totalUSDT, hasTargets, targetSum, actionable, skipped, triggered, sellTotal, buyTotal,
+    calculate: handleCalculate,
+  } = useRebalance(assets, targets)
   const isUSD = currency === 'USD'
-
-  const allResults = useMemo(() => {
-    if (!confirmed || !hasTargets) return []
-    return calculateRebalance(assets, targets)
-  }, [assets, targets, confirmed, hasTargets])
-
-  const actionable = useMemo(() => allResults.filter(r => !r.belowMinOrder), [allResults])
-  const skipped    = useMemo(() => allResults.filter(r =>  r.belowMinOrder), [allResults])
-  const triggered  = useMemo(() => actionable.filter(r => r.isTriggered),    [actionable])
-  const pendingMin = useMemo(() => skipped.filter(r => r.category === 'core' && r.gateStatus?.gate1Band && r.gateStatus?.gate2Economic), [skipped])
-
-  // For sell/buy totals, only count core assets (not reserve replenishment or trading transfers)
-  const sellTotal = useMemo(() => actionable.filter(r => r.action === 'sell' && r.category === 'core').reduce((s, r) => s + r.amountUSDT, 0), [actionable])
-  const buyTotal  = useMemo(() => actionable.filter(r => r.action === 'buy'  && r.category === 'core').reduce((s, r) => s + r.amountUSDT, 0), [actionable])
-
 
   if (!hasTargets) {
     return (
@@ -268,7 +179,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
           </div>
         </div>
 
-        {/* Target warning if sum != 100 */}
+        {/* Target warning */}
         {Math.abs(targetSum - 100) > 0.5 && (
           <div role="alert" className="alert alert-warning mb-4" style={{ fontSize: '0.82rem' }}>
             <span>⚠️ Target allocations sum to <strong>{targetSum.toFixed(1)}%</strong> (should equal 100%). Update in Settings for accurate results.</span>
@@ -283,64 +194,49 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
           gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem',
         }}>
           <div>
-            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>
-              Total Portfolio Value
-            </div>
+            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Total Portfolio Value</div>
             <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#F0B90B' }}>
               <CurrencyDisplay usdValue={totalUSDT} currency={currency} rates={rates} />
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>
-              Economic Min (0.5% Port.)
-            </div>
-            <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#60a5fa' }}>
-              {fmtUSDT(totalUSDT * MIN_DRIFT_PORTFOLIO_RATIO)}
-            </div>
+            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Economic Min (0.5% Port.)</div>
+            <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#60a5fa' }}>{fmtUSDT(totalUSDT * MIN_DRIFT_PORTFOLIO_RATIO)}</div>
           </div>
           <div>
-            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>
-              Min Order Size
-            </div>
-            <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: 'oklch(75% 0.01 240)' }}>
-              ${MIN_ORDER_USDT}
-            </div>
+            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Min Order Size</div>
+            <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: 'oklch(75% 0.01 240)' }}>${MIN_ORDER_USDT}</div>
           </div>
           <div>
-            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>
-              Assets with Targets
-            </div>
-            <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: 'oklch(92% 0.01 240)' }}>
-              {Object.keys(targets).length}
-            </div>
+            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Assets with Targets</div>
+            <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: 'oklch(92% 0.01 240)' }}>{Object.keys(targets).length}</div>
           </div>
           <div>
-            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>
-              Current Drift
-            </div>
+            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Current Drift</div>
             <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: assets.some(a => Math.abs(a.drift) > 5) ? '#ef4444' : '#22c55e' }}>
               {assets.some(a => Math.abs(a.drift) > 5) ? 'High' : assets.some(a => Math.abs(a.drift) > 2) ? 'Moderate' : 'Low'}
             </div>
           </div>
         </div>
 
-        {/* Calculate Button */}
+        {/* Action Button */}
         {!confirmed ? (
           <button
             id="rebalance-calculate-btn"
             type="button"
             className="btn btn-primary"
-            onClick={() => setConfirmed(true)}
+            onClick={handleCalculate}
+            disabled={calculating}
             style={{ marginTop: '1.5rem', width: '100%', minHeight: '3rem' }}
           >
-            Calculate Rebalance Plan
+            {calculating ? <><span className="loading loading-spinner loading-sm" /> Calculating…</> : 'Calculate Rebalance Plan'}
           </button>
         ) : (
           <button
             id="rebalance-reset-btn"
             type="button"
             className="btn btn-ghost"
-            onClick={() => { setConfirmed(false); setShowSkipped(false) }}
+            onClick={() => { setConfirmed(false); setShowSkipped(false); setRebalanceResult(null) }}
             style={{ marginTop: '1.5rem', width: '100%', border: '1px solid oklch(100% 0 0 / 0.1)' }}
           >
             Reset Calculation
@@ -348,115 +244,69 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
         )}
       </div>
 
+      {error && (
+        <div role="alert" className="alert alert-error" style={{ fontSize: '0.82rem' }}>{error}</div>
+      )}
+
       {/* Results */}
-      {confirmed && allResults.length > 0 && (
+      {confirmed && rebalanceResult && (rebalanceResult.orders.length > 0) && (
         <>
           {/* Summary Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
             <div className="surface-card fade-up" style={{ padding: '1.5rem', border: '1px solid oklch(239% 0.082 120 / 0.3)' }}>
-              <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
-                Total to Sell
-              </div>
-              <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ef4444' }}>
-                {fmtUSDT(sellTotal)}
-              </div>
-              <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>
-                {actionable.filter(r => r.action === 'sell').length} orders
-              </div>
+              <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Total to Sell</div>
+              <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ef4444' }}>{fmtUSDT(sellTotal)}</div>
+              <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>{actionable.filter(o => o.action === 'SELL').length} orders</div>
             </div>
 
             <div className="surface-card fade-up" style={{ padding: '1.5rem', border: '1px solid oklch(142% 0.071 120 / 0.3)' }}>
-              <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
-                Total to Buy
-              </div>
-              <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#22c55e' }}>
-                {fmtUSDT(buyTotal)}
-              </div>
-              <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>
-                {actionable.filter(r => r.action === 'buy').length} orders
-              </div>
+              <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Total to Buy</div>
+              <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#22c55e' }}>{fmtUSDT(buyTotal)}</div>
+              <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>{actionable.filter(o => o.action === 'BUY').length} orders</div>
             </div>
 
             {skipped.length > 0 && (
-              <div className="surface-card fade-up" style={{
-                padding: '1.5rem',
-                border: pendingMin.length > 0 ? '1px solid oklch(70% 0.2 55 / 0.4)' : '1px solid oklch(70% 0.18 85 / 0.25)',
-              }}>
-                <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
-                  {pendingMin.length > 0 ? `Pending Min Order ($${MIN_ORDER_USDT})` : `Skipped (< $${MIN_ORDER_USDT})`}
-                </div>
-                <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: pendingMin.length > 0 ? '#f97316' : '#f59e0b' }}>
-                  {skipped.length}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>
-                  {pendingMin.length > 0 ? `${pendingMin.map(r => r.symbol).join(', ')} meets band but < $${MIN_ORDER_USDT}` : 'Will self-correct over time'}
-                </div>
+              <div className="surface-card fade-up" style={{ padding: '1.5rem', border: '1px solid oklch(70% 0.18 85 / 0.25)' }}>
+                <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Skipped (&lt; ${MIN_ORDER_USDT})</div>
+                <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#f59e0b' }}>{skipped.length}</div>
+                <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>Will self-correct over time</div>
+              </div>
+            )}
+
+            {rebalanceResult.estimatedFeesUSDT > 0 && (
+              <div className="surface-card fade-up" style={{ padding: '1.5rem', border: '1px solid oklch(50% 0.15 240 / 0.25)' }}>
+                <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Est. Fees</div>
+                <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#60a5fa' }}>{fmtUSDT(rebalanceResult.estimatedFeesUSDT)}</div>
+                <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>~0.1% per order</div>
               </div>
             )}
           </div>
 
-          {/* Rebalance Table — actionable orders */}
+          {/* Rebalance Orders Table */}
           {actionable.length > 0 && (
             <div className="surface-card fade-up" style={{ overflow: 'hidden' }}>
-              {/* Triggered alert banner */}
               {triggered.length > 0 && (
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
-                  padding: '0.65rem 1.25rem',
-                  background: 'oklch(35% 0.18 30 / 0.15)',
-                  borderBottom: '1px solid oklch(65% 0.22 30 / 0.35)',
-                  fontSize: '0.78rem',
+                  padding: '0.65rem 1.25rem', background: 'oklch(35% 0.18 30 / 0.15)',
+                  borderBottom: '1px solid oklch(65% 0.22 30 / 0.35)', fontSize: '0.78rem',
                 }}>
-                  <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.04em', fontFamily: 'JetBrains Mono, monospace' }}>
-                    ⚠ THRESHOLD EXCEEDED
-                  </span>
-                  <span style={{ color: 'oklch(75% 0.05 30)' }}>
-                    {triggered.length} asset{triggered.length > 1 ? 's have' : ' has'} breached its rebalance band:
-                  </span>
-                  {triggered.map(r => (
-                    <span key={r.symbol} style={{
-                      background: 'oklch(50% 0.22 30 / 0.2)',
-                      color: '#f87171',
-                      border: '1px solid oklch(60% 0.22 30 / 0.4)',
-                      borderRadius: '0.25rem',
-                      fontSize: '0.7rem', fontWeight: 700,
-                      padding: '0.1rem 0.4rem',
+                  <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.04em', fontFamily: 'JetBrains Mono, monospace' }}>⚠ THRESHOLD EXCEEDED</span>
+                  <span style={{ color: 'oklch(75% 0.05 30)' }}>{triggered.length} asset{triggered.length > 1 ? 's have' : ' has'} breached its rebalance band:</span>
+                  {triggered.map(o => (
+                    <span key={o.symbol} style={{
+                      background: 'oklch(50% 0.22 30 / 0.2)', color: '#f87171',
+                      border: '1px solid oklch(60% 0.22 30 / 0.4)', borderRadius: '0.25rem',
+                      fontSize: '0.7rem', fontWeight: 700, padding: '0.1rem 0.4rem',
                       fontFamily: 'JetBrains Mono, monospace',
-                    }}>
-                      {r.symbol} {r.action === 'sell' ? '▼' : '▲'} {fmtUSDT(r.amountUSDT)}
-                    </span>
+                    }}>{o.symbol} {o.action === 'SELL' ? '▼' : '▲'} {fmtUSDT(o.amountUSDT)}</span>
                   ))}
                 </div>
               )}
 
-              {/* Pending Min Order informational banner */}
-              {pendingMin.length > 0 && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
-                  padding: '0.65rem 1.25rem',
-                  background: 'oklch(30% 0.12 55 / 0.18)',
-                  borderBottom: '1px solid oklch(60% 0.18 55 / 0.35)',
-                  fontSize: '0.78rem',
-                }}>
-                  <span style={{ color: '#f97316', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.04em', fontFamily: 'JetBrains Mono, monospace' }}>
-                    ⏳ PENDING MIN ORDER
-                  </span>
-                  <span style={{ color: 'oklch(85% 0.04 55)' }}>
-                    {pendingMin.map(r => `${r.symbol} (${fmtUSDT(r.amountUSDT)})`).join(', ')} memenuhi syarat rebalance, namun pending karena di bawah minimum order Binance (${fmtUSDT(MIN_ORDER_USDT)}).
-                  </span>
-                </div>
-              )}
-
-              <div style={{
-                padding: '1.25rem 1.5rem', borderBottom: '1px solid oklch(100% 0 0 / 0.07)',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              }}>
-                <span style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>
-                  Rebalance Orders
-                </span>
-                <div style={{ fontSize: '0.75rem', color: 'oklch(45% 0.01 240)', fontStyle: 'italic' }}>
-                  Execute sells first, then buys
-                </div>
+              <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid oklch(100% 0 0 / 0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>Rebalance Orders</span>
+                <div style={{ fontSize: '0.75rem', color: 'oklch(45% 0.01 240)', fontStyle: 'italic' }}>Execute sells first, then buys</div>
               </div>
 
               <div style={{ overflowX: 'auto' }}>
@@ -473,9 +323,8 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                     </tr>
                   </thead>
                   <tbody>
-                    {actionable.map((r, i) => (
-                      <RebalanceRow key={r.symbol} r={r} idx={i} total={actionable.length}
-                        assets={assets} currency={currency} rates={rates} isUSD={isUSD} />
+                    {actionable.map((o, i) => (
+                      <OrderRow key={o.symbol} order={o} idx={i} total={actionable.length} assets={assets} currency={currency} rates={rates} isUSD={isUSD} />
                     ))}
                   </tbody>
                 </table>
@@ -483,31 +332,16 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
             </div>
           )}
 
-          {/* Skipped orders section */}
+          {/* Skipped orders */}
           {skipped.length > 0 && (
             <div className="surface-card fade-up" style={{ overflow: 'hidden' }}>
-              {/* Collapsible header */}
               <button
                 type="button"
                 onClick={() => setShowSkipped(v => !v)}
-                style={{
-                  width: '100%', padding: '1rem 1.5rem',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  borderBottom: showSkipped ? '1px solid oklch(100% 0 0 / 0.07)' : 'none',
-                }}
+                style={{ width: '100%', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', borderBottom: showSkipped ? '1px solid oklch(100% 0 0 / 0.07)' : 'none' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <span style={{
-                    background: 'oklch(50% 0.12 85 / 0.15)',
-                    color: '#f59e0b',
-                    border: '1px solid oklch(70% 0.18 85 / 0.3)',
-                    borderRadius: '0.25rem',
-                    fontSize: '0.65rem', fontWeight: 700,
-                    padding: '0.15rem 0.45rem',
-                    letterSpacing: '0.04em',
-                    fontFamily: 'JetBrains Mono, monospace',
-                  }}>
+                  <span style={{ background: 'oklch(50% 0.12 85 / 0.15)', color: '#f59e0b', border: '1px solid oklch(70% 0.18 85 / 0.3)', borderRadius: '0.25rem', fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', letterSpacing: '0.04em', fontFamily: 'JetBrains Mono, monospace' }}>
                     {skipped.length} SKIPPED
                   </span>
                   <span style={{ fontSize: '0.78rem', color: 'oklch(55% 0.01 240)', fontWeight: 500 }}>
@@ -519,22 +353,11 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
 
               {showSkipped && (
                 <>
-                  {/* Explanation banner */}
-                  <div style={{
-                    margin: '0.75rem 1.25rem',
-                    padding: '0.75rem 1rem',
-                    background: 'oklch(22% 0.05 85 / 0.2)',
-                    border: '1px solid oklch(70% 0.18 85 / 0.2)',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.8rem',
-                    color: 'oklch(75% 0.05 85)',
-                    lineHeight: 1.55,
-                  }}>
-                    💡 These orders are too small to execute on Binance (minimum ~${MIN_ORDER_USDT} per order). 
-                    The drift will naturally grow with price movements and future deposits until it crosses the minimum threshold.
+                  <div style={{ margin: '0.75rem 1.25rem', padding: '0.75rem 1rem', background: 'oklch(22% 0.05 85 / 0.2)', border: '1px solid oklch(70% 0.18 85 / 0.2)', borderRadius: '0.375rem', fontSize: '0.8rem', color: 'oklch(75% 0.05 85)', lineHeight: 1.55 }}>
+                    💡 These orders are too small to execute on Binance (minimum ~${MIN_ORDER_USDT} per order).
+                    The drift will naturally grow until it crosses the threshold.
                     <strong style={{ color: '#f59e0b' }}> No action needed</strong> — the next rebalance will pick them up automatically.
                   </div>
-
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                       <thead>
@@ -549,9 +372,8 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                         </tr>
                       </thead>
                       <tbody>
-                        {skipped.map((r, i) => (
-                          <RebalanceRow key={r.symbol} r={r} idx={i} total={skipped.length}
-                            assets={assets} currency={currency} rates={rates} isUSD={isUSD} dimmed />
+                        {skipped.map((o, i) => (
+                          <OrderRow key={o.symbol} order={o} idx={i} total={skipped.length} assets={assets} currency={currency} rates={rates} isUSD={isUSD} dimmed />
                         ))}
                       </tbody>
                     </table>
@@ -562,26 +384,16 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
           )}
 
           {/* Execution Note */}
-          <div className="surface-card fade-up" style={{
-            padding: '1rem 1.5rem',
-            background: 'oklch(22% 0.05 85 / 0.25)',
-            border: '1px solid oklch(80% 0.18 85 / 0.25)',
-            borderRadius: '0.5rem',
-            fontSize: '0.82rem',
-            color: 'oklch(85% 0.05 85)',
-            lineHeight: 1.5,
-          }}>
+          <div className="surface-card fade-up" style={{ padding: '1rem 1.5rem', background: 'oklch(22% 0.05 85 / 0.25)', border: '1px solid oklch(80% 0.18 85 / 0.25)', borderRadius: '0.5rem', fontSize: '0.82rem', color: 'oklch(85% 0.05 85)', lineHeight: 1.5 }}>
             <strong>Execution Note:</strong> Execute sell orders first to free up USDT, then execute buy orders. Orders below <strong>${MIN_ORDER_USDT}</strong> are skipped — Binance cannot process them. Consider trading fees and slippage before executing.
           </div>
         </>
       )}
 
-      {confirmed && allResults.length === 0 && (
+      {confirmed && rebalanceResult && rebalanceResult.orders.length === 0 && (
         <div className="surface-card fade-up" style={{ padding: '2.5rem', textAlign: 'center' }}>
           <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>✓</div>
-          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#22c55e', marginBottom: '0.5rem' }}>
-            Portfolio Already Balanced
-          </div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#22c55e', marginBottom: '0.5rem' }}>Portfolio Already Balanced</div>
           <p style={{ color: 'oklch(55% 0.01 240)', fontSize: '0.85rem' }}>
             Your current allocation matches your target allocation. No rebalancing needed.
           </p>

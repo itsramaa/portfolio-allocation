@@ -12,47 +12,9 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/binance': {
-        target: 'https://api.binance.com',
+      '/api': {
+        target: 'http://localhost:3001',
         changeOrigin: true,
-        secure: true,
-        rewrite: (path) => path.replace(/^\/binance/, ''),
-        configure: (proxy, options) => {
-          proxy.on('error', (err) => {
-            console.error('Proxy error:', err)
-          })
-          proxy.on('proxyReq', (_proxyReq, req) => {
-            console.log('Proxying request:', req.method, req.url, '->', String(options.target ?? '') + (req.url ?? ''))
-          })
-        }
-      },
-      '/bapi': {
-        target: 'https://www.binance.com',
-        changeOrigin: true,
-        secure: true,
-        configure: (proxy, options) => {
-          proxy.on('error', (err) => {
-            console.error('Alpha API proxy error:', err)
-          })
-          proxy.on('proxyReq', (_proxyReq, req) => {
-            console.log('Proxying Alpha request:', req.method, req.url, '->', String(options.target ?? '') + (req.url ?? ''))
-          })
-        }
-      },
-      '/fapi': {
-        target: 'https://fapi.binance.com',
-        changeOrigin: true,
-        secure: true,
-      },
-      '/dapi': {
-        target: 'https://dapi.binance.com',
-        changeOrigin: true,
-        secure: true,
-      },
-      '/sapi': {
-        target: 'https://api.binance.com',
-        changeOrigin: true,
-        secure: true,
       }
     }
   }

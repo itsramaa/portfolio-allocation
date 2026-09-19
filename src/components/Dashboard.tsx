@@ -1,12 +1,12 @@
 // ─── Dashboard Tab ───────────────────────────────────────────────────────────
-import { useMemo } from 'react'
+import { useDashboard } from '../hooks/useDashboard'
 import {
   PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine,
 } from 'recharts'
 import type { Asset, CurrencyCode } from '../types'
-import { fmtPct, fmtAmount, REBALANCE_FLOOR_PP, MIN_DRIFT_PORTFOLIO_RATIO, evaluateRebalanceGates, fmtUSDT } from '../portfolio'
-import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
+import { fmtPct, fmtAmount, REBALANCE_FLOOR_PP, MIN_DRIFT_PORTFOLIO_RATIO, fmtUSDT, evaluateRebalanceGates } from '../lib/portfolio'
+import { convertUSDToCurrency, formatCurrencyValue } from '../utils/currency'
 import { CurrencyDisplay } from './CurrencyDisplay'
 
 interface DashboardProps {
@@ -59,7 +59,8 @@ function ChartTooltip({
   rates?: Record<string, number>
 }) {
   if (!active || !payload?.length) return null
-  const d = payload[0].payload as Asset
+  const entry = payload[0].payload as { payload?: Asset } | Asset
+  const d = ('payload' in entry ? entry.payload : entry) as Asset
   if (!d || d.usdtValue === undefined) return null
   const isUSD = currency === 'USD'
   const converted = convertUSDToCurrency(d.usdtValue, currency, rates)
@@ -107,34 +108,8 @@ export function Dashboard({
   currency = 'USD',
   rates = {},
 }: DashboardProps) {
-  const totalUSDT = useMemo(() => assets.reduce((s, a) => s + a.usdtValue, 0), [assets])
-  const largestAsset = useMemo(() => assets[0], [assets])
-  const assetsWithTarget = useMemo(() => assets.filter(a => a.targetPct > 0), [assets])
-
+  const { totalUSDT, activeAssets, largestAsset, assetsWithTarget, driftData, allocationData, triggeredAssets } = useDashboard(assets)
   const displayedAssets = assets
-
-  const driftData = useMemo(() =>
-    assets
-      .filter(a => a.targetPct > 0 || a.currentPct > 1)
-      .slice(0, 10)
-      .map(a => ({
-        asset: a.symbol,
-        current: a.currentPct,
-        target: a.targetPct,
-        band: a.rebalanceBand,
-      })),
-    [assets]
-  )
-
-  const triggeredAssets = useMemo(() => {
-    const total = assets.reduce((s, x) => s + x.usdtValue, 0)
-    return assets.filter(a => {
-      if (a.rebalanceBand <= 0 || a.usdtValue <= 0) return false
-      const driftValue = Math.abs(a.usdtValue - (a.targetPct / 100) * total)
-      const tradeValue = driftValue
-      return evaluateRebalanceGates(Math.abs(a.drift), a.rebalanceBand, driftValue, tradeValue, total, 'core').isTriggered
-    })
-  }, [assets])
 
   // Loading state
   if (loading) {
@@ -169,7 +144,7 @@ export function Dashboard({
   }
 
   // Empty state
-  if (assets.length === 0) {
+  if (activeAssets.length === 0) {
     return (
       <div className="surface-card fade-up" style={{ padding: '3.5rem 2rem', textAlign: 'center', maxWidth: 640, margin: '2rem auto' }}>
         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💼</div>
@@ -211,8 +186,7 @@ export function Dashboard({
     )
   }
 
-  const DONUT_COLORS = assets.slice(0, 8).map(a => a.logoColor)
-  const donutData = assets.slice(0, 8).map(a => ({ name: a.symbol, value: a.usdtValue, payload: a }))
+  const donutData = allocationData
 
   const isUSD = currency === 'USD'
   const convertedTotal = convertUSDToCurrency(totalUSDT, currency, rates)
@@ -239,7 +213,7 @@ export function Dashboard({
           )}
         </div>
 
-        <StatCard label="Active Assets" value={String(assets.length)} />
+        <StatCard label="Active Assets" value={String(activeAssets.length)} />
 
         {/* Largest Position */}
         <StatCard
@@ -260,7 +234,7 @@ export function Dashboard({
         {/* Configured Targets */}
         <StatCard
           label="Configured Targets"
-          value={`${assetsWithTarget.length} / ${assets.length}`}
+          value={`${assetsWithTarget.length} / ${activeAssets.length}`}
           sub={assetsWithTarget.length === 0 ? 'Set targets in Settings' : undefined}
           subColor={assetsWithTarget.length === 0 ? '#F0B90B' : undefined}
         />
@@ -286,21 +260,19 @@ export function Dashboard({
                 dataKey="value"
                 strokeWidth={0}
               >
-                {donutData.map((entry, index) => (
-                  <Cell key={entry.name} fill={DONUT_COLORS[index] ?? '#848E9C'} opacity={0.9} />
+                {donutData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} opacity={0.9} />
                 ))}
               </Pie>
               <ReTooltip content={<ChartTooltip currency={currency} rates={rates} />} />
             </PieChart>
           </ResponsiveContainer>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 1rem', marginTop: '0.75rem', justifyContent: 'center' }}>
-            {assets.slice(0, 6).map((a, i) => (
-              <div key={a.symbol} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.72rem' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: DONUT_COLORS[i] }} />
-                <span style={{ color: 'oklch(75% 0.01 240)' }}>
-                  {a.symbol}
-                </span>
-                <span className="mono" style={{ color: 'oklch(50% 0.01 240)' }}>{a.currentPct.toFixed(1)}%</span>
+            {donutData.map((entry) => (
+              <div key={entry.name} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.72rem' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color }} />
+                <span style={{ color: 'oklch(75% 0.01 240)' }}>{entry.name}</span>
+                <span className="mono" style={{ color: 'oklch(50% 0.01 240)' }}>{((entry.value / totalUSDT) * 100).toFixed(1)}%</span>
               </div>
             ))}
           </div>

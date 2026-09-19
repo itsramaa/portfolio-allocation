@@ -1,18 +1,65 @@
-import type { Asset, InjectionResult, TargetAllocation } from './types'
+// ─── Asset domain logic ──────────────────────────────────────────────────────
+import type { Asset, InjectionResult, TargetAllocation } from '../types'
+import {
+  ASSET_COLORS,
+  FUTURES_COLOR,
+  DEFAULT_ASSET_COLOR,
+  STABLECOIN_SYMBOLS,
+  RESERVE_SYMBOLS,
+  TRADING_BUCKETS,
+  MIN_DUST_USDT,
+  MIN_VISIBLE_DRIFT_USDT,
+} from '../config/assets'
+import {
+  REBALANCE_RELATIVE,
+  REBALANCE_FLOOR_PP,
+  MIN_ORDER_USDT,
+  MIN_DRIFT_PORTFOLIO_RATIO,
+  MAX_REBALANCE_COST_RATIO,
+  ESTIMATED_FEE_RATE,
+  ESTIMATED_FRICTION_FLOOR_USDT,
+  ESTIMATED_FIXED_FRICTION,
+  MIN_DOLLAR_DRIFT,
+  REBALANCE_HYSTERESIS_PP,
+} from '../config/rebalance'
 
-// deterministic color per ticker (for chart / icon)
-const ASSET_COLORS: Record<string, string> = {
-  BTC: '#F7931A', ETH: '#627EEA', BNB: '#F0B90B', SOL: '#9945FF',
-  USDT: '#26A17B', USDC: '#2775CA', XRP: '#00AAE4', ADA: '#0033AD',
-  DOGE: '#C2A633', AVAX: '#E84142', DOT: '#E6007A', LINK: '#375BD2',
-  MATIC: '#8247E5', LTC: '#BFBBBB', ATOM: '#2E3148', UNI: '#FF007A',
-  NEAR: '#00C08B', APT: '#00BFA5', ARB: '#28A0F0', OP: '#FF0420',
-  FDUSD: '#00B8D9',
+// Re-export config constants consumed by external modules (avoids deep config imports in UI)
+export {
+  STABLECOIN_SYMBOLS,
+  RESERVE_SYMBOLS,
+  TRADING_BUCKETS,
+  REBALANCE_RELATIVE,
+  REBALANCE_FLOOR_PP,
+  MIN_ORDER_USDT,
+  MIN_DRIFT_PORTFOLIO_RATIO,
+  MAX_REBALANCE_COST_RATIO,
+  ESTIMATED_FEE_RATE,
+  ESTIMATED_FIXED_FRICTION,
+  MIN_DOLLAR_DRIFT,
+  REBALANCE_HYSTERESIS_PP,
+}
+
+export function isFuturesAsset(symbol: string): boolean {
+  return symbol === 'FUTURES_USDT' || symbol.startsWith('FUTURES_')
+}
+
+export function isStablecoin(symbol: string): boolean {
+  return STABLECOIN_SYMBOLS.has(symbol)
+}
+
+export function calcTotalUSDT(assets: Asset[]): number {
+  return assets.reduce((sum, asset) => sum + asset.usdtValue, 0)
+}
+
+export function resolveTargetPct(symbol: string, targets: TargetAllocation): number {
+  const explicit = targets[symbol] ?? 0
+  if (explicit > 0) return explicit
+  return targets['OTHER'] ?? 0
 }
 
 export function assetColor(symbol: string, isFutures = false): string {
-  if (isFutures || symbol.startsWith('FUTURES')) return '#02C076' // Vibrant green for Futures assets
-  return ASSET_COLORS[symbol] ?? '#848E9C'
+  if (isFutures || isFuturesAsset(symbol)) return FUTURES_COLOR
+  return ASSET_COLORS[symbol] ?? DEFAULT_ASSET_COLOR
 }
 
 // ─── Rebalance Band ─────────────────────────────────────────────────────────
@@ -27,18 +74,24 @@ export function assetColor(symbol: string, isFutures = false): string {
 // 3. TRADING_BUCKET (FUTURES_USDT)
 //    No auto-trigger. Show transfer guidance only.
 
-export const REBALANCE_RELATIVE = 0.25   // 25% of target pct
-export const REBALANCE_FLOOR_PP = 3      // minimum 3 percentage-points
-
-// Reserve assets: hold excess is fine; only flag if underweight (and never hard-trigger)
-export const RESERVE_SYMBOLS = new Set(['USDT', 'USDC', 'FDUSD', 'BUSD', 'TUSD', 'DAI'])
-
-// Trading/margin buckets: show transfer guidance, never auto-trigger
-export const TRADING_BUCKETS = new Set(['FUTURES_USDT'])
-
 export function calcRebalanceBand(targetPct: number, symbol: string): number {
   if (TRADING_BUCKETS.has(symbol) || RESERVE_SYMBOLS.has(symbol) || targetPct === 0) return 0
   return Math.max(REBALANCE_RELATIVE * targetPct, REBALANCE_FLOOR_PP)
+}
+
+export function recalculateAssetTargets(assets: Asset[], targets: TargetAllocation): Asset[] {
+  const total = calcTotalUSDT(assets)
+  return assets.map(a => {
+    const currentPct = total > 0 ? (a.usdtValue / total) * 100 : 0
+    const targetPct = resolveTargetPct(a.symbol, targets)
+    return {
+      ...a,
+      currentPct,
+      targetPct,
+      drift: currentPct - targetPct,
+      rebalanceBand: calcRebalanceBand(targetPct, a.symbol),
+    }
+  })
 }
 
 // build the asset list from raw balances + prices + target config
@@ -54,12 +107,11 @@ export function buildAssets(
     const amount = parseFloat(b.free) + parseFloat(b.locked)
     if (amount <= 0) continue
 
-    const isFutures = sym === 'FUTURES_USDT' || sym.startsWith('FUTURES_')
+    const isFutures = isFuturesAsset(sym)
 
     // get USDT price
     let price = 1
-    const STABLES = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'TUSD', 'DAI', 'USDS', 'USDP', 'FUTURES_USDT']
-    if (STABLES.includes(sym)) {
+    if (isStablecoin(sym)) {
       price = 1
     } else if (prices[sym]) {
       price = prices[sym]
@@ -80,7 +132,7 @@ export function buildAssets(
     }
 
     const usdtValue = amount * price
-    if (usdtValue < 0.05) continue // skip dust < $0.05 (5 cents)
+    if (usdtValue < MIN_DUST_USDT) continue
 
     const targetPct = targets[sym] ?? 0
 
@@ -102,22 +154,7 @@ export function buildAssets(
   // sort by value desc
   assets.sort((a, b) => b.usdtValue - a.usdtValue)
 
-  const total = assets.reduce((s, a) => s + a.usdtValue, 0)
-  const otherTargetPct = targets['OTHER'] ?? 0
-  
-  for (const a of assets) {
-    a.currentPct = total > 0 ? (a.usdtValue / total) * 100 : 0
-    
-    // If asset has no specific target, use OTHER allocation
-    if (a.targetPct === 0 && otherTargetPct > 0) {
-      a.targetPct = otherTargetPct
-    }
-    
-    a.drift = a.currentPct - a.targetPct
-    a.rebalanceBand = calcRebalanceBand(a.targetPct, a.symbol)
-  }
-
-  return assets
+  return recalculateAssetTargets(assets, targets)
 }
 
 // cash injection calculator
@@ -130,7 +167,7 @@ export function calculateInjection(
 ): InjectionResult[] {
   if (injectionUSDT <= 0 || assets.length === 0) return []
 
-  const totalCurrent = assets.reduce((s, a) => s + a.usdtValue, 0)
+  const totalCurrent = calcTotalUSDT(assets)
   const totalAfter = totalCurrent + injectionUSDT
 
   // compute shortfall per asset (in USDT terms after injection)
@@ -176,24 +213,10 @@ export function calculateInjection(
   return results.sort((a, b) => b.buyUSDT - a.buyUSDT)
 }
 
-// Binance minimum order value (notional) — orders below this cannot be executed
-export const MIN_ORDER_USDT = 5
-
 // ─── Adaptive Dynamic Rebalance Triggers ─────────────────────────────────────
 // Gate 1 (Allocation Band): |drift_pp| >= max(25% × target, 3pp)
 // Gate 2 (Economic Scale):  dollar_drift >= 0.5% × total_portfolio
 // Gate 3 (Transaction Cost Guard): estimated_cost <= 1% of trade_value AND trade_value >= $5 (Binance min order)
-export const MIN_DRIFT_PORTFOLIO_RATIO = 0.005 // 0.5% of total portfolio value
-export const MAX_REBALANCE_COST_RATIO = 0.01   // max 1% of trade value
-export const ESTIMATED_FEE_RATE = 0.001        // 0.1% Binance spot baseline maker/taker fee
-// Internal model for market friction (bid/ask spread allowance + micro-slippage + lot rounding floor)
-// Note: This is NOT an exchange fee, but an execution safety floor model.
-export const ESTIMATED_FRICTION_FLOOR_USDT = 0.05 // ~$0.05 (Rp ~750) internal friction floor
-export const ESTIMATED_FIXED_FRICTION = ESTIMATED_FRICTION_FLOOR_USDT // backward-compat alias
-export const MIN_DOLLAR_DRIFT = 25             // legacy alias / fallback
-
-// Hysteresis deadband buffer to prevent border flip-flop oscillation (e.g. 37.49% vs 37.51%)
-export const REBALANCE_HYSTERESIS_PP = 0.5     // 0.5pp cooldown buffer after rebalance
 
 export function calcEstimatedTradeCost(tradeValue: number, feeRate = ESTIMATED_FEE_RATE): number {
   if (tradeValue <= 0) return 0
@@ -282,7 +305,7 @@ export function calculateRebalance(
 ): RebalanceItem[] {
   if (assets.length === 0 && Object.keys(targets).length === 0) return []
 
-  const totalUSDT = assets.reduce((s, a) => s + a.usdtValue, 0)
+  const totalUSDT = calcTotalUSDT(assets)
   if (totalUSDT <= 0) return []
 
   // Gather all unique symbols from held assets + configured targets (excluding 'OTHER')
@@ -311,7 +334,7 @@ export function calculateRebalance(
 
     // ─── Category: Trading bucket (Futures) ────────────────────────────────
     if (TRADING_BUCKETS.has(sym)) {
-      if (Math.abs(diff) < 0.50) continue
+      if (Math.abs(diff) < MIN_VISIBLE_DRIFT_USDT) continue
       const amountUSDT = Math.abs(diff)
       results.push({
         symbol: sym, category: 'trading',
@@ -329,7 +352,7 @@ export function calculateRebalance(
       if (diff >= 0) continue
       // Underweight reserve = soft note (not hard-triggered, just informational)
       const amountUSDT = Math.abs(diff)
-      if (amountUSDT < 0.50) continue
+      if (amountUSDT < MIN_VISIBLE_DRIFT_USDT) continue
       results.push({
         symbol: sym, category: 'reserve',
         action: 'buy', // replenish reserve
@@ -341,7 +364,7 @@ export function calculateRebalance(
     }
 
     // ─── Category: Core asset ───────────────────────────────────────────
-    if (Math.abs(diff) < 0.50) continue
+    if (Math.abs(diff) < MIN_VISIBLE_DRIFT_USDT) continue
 
     const driftValueUSDT = Math.abs(currentValue - targetValue)
     const tradeValueUSDT = Math.abs(diff) // amount actually needed to execute toward target

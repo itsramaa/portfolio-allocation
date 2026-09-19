@@ -1,10 +1,9 @@
 // ─── Main Application Shell ──────────────────────────────────────────────────
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import type { AppTab, ConnectionStatus, ApiCredentials, Asset, TargetAllocation, CurrencyCode, FxRates } from './types'
-import { loadCredentials, loadTargetAllocation, saveTargetAllocation, saveSnapshot, clearCredentials, loadArchivedAssets, saveArchivedAssets } from './storage'
-import { fetchAccountBalances, fetchAllPrices } from './binanceApi'
-import { buildAssets, calcRebalanceBand } from './portfolio'
-import { loadSelectedCurrency, saveSelectedCurrency, loadCachedRates, fetchLiveFxRates } from './currency'
+import { usePortfolioApp } from './hooks/usePortfolioApp'
+import type { AppTab, TargetAllocation } from './types'
+import { loadCredentials } from './utils/storage'
+import { useCurrencyRates } from './hooks/useCurrencyRates'
+import { usePortfolioSync } from './hooks/usePortfolioSync'
 
 import { Sidebar } from './components/Sidebar'
 import { Dashboard } from './components/Dashboard'
@@ -12,251 +11,74 @@ import { Inject } from './components/Inject'
 import { Rebalance } from './components/Rebalance'
 import { Settings } from './components/Settings'
 import { History } from './components/History'
+import { Narratives } from './components/Narratives'
 import { Onboarding } from './components/Onboarding'
+import { AuthGate } from './components/AuthGate'
 
-// ── Default Mock / Demo Assets ───────────────────────────────────────────────
-const DEMO_TARGETS: TargetAllocation = {
-  BTC: 45,
-  ETH: 25,
-  SOL: 15,
-  BNB: 10,
-  NEAR: 5,
-}
+function PortfolioApp() {
+  const {
+    targets, archivedAssets, activeTab, setActiveTab, sidebarCollapsed, setSidebarCollapsed,
+    mobileSidebarOpen, setMobileSidebarOpen, handleTargetsChange: updateTargets,
+    handleToggleArchive, handleTabChange,
+  } = usePortfolioApp()
 
+  // Currency & FX rates management hook
+  const { currency, fxRates, handleCurrencyChange, handleRefreshRates } = useCurrencyRates()
 
-const DEMO_BALANCES = [
-  { asset: 'BTC', free: '0.245', locked: '0' },
-  { asset: 'ETH', free: '2.10', locked: '0' },
-  { asset: 'SOL', free: '18.5', locked: '0' },
-  { asset: 'BNB', free: '4.2', locked: '0' },
-  { asset: 'NEAR', free: '150.0', locked: '0' },
-  { asset: 'USDT', free: '480.0', locked: '0' },
-]
-
-export default function App() {
-  const [credentials, setCredentials] = useState<ApiCredentials | null>(() => loadCredentials())
-  const [targets, setTargets] = useState<TargetAllocation>(() => {
-    const saved = loadTargetAllocation()
-    return Object.keys(saved).length > 0 ? saved : DEMO_TARGETS
-  })
-  const [archivedAssets, setArchivedAssets] = useState<Set<string>>(() => loadArchivedAssets())
-  const [activeTab, setActiveTab] = useState<AppTab>('dashboard')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false)
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false)
-
-  // Currency & FX rates
-  const [currency, setCurrency] = useState<CurrencyCode>(() => loadSelectedCurrency())
-  const [fxRates, setFxRates] = useState<FxRates>(() => loadCachedRates())
-
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(() => {
-    return loadCredentials() ? 'loading' : 'unconfigured'
-  })
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(() => !loadCredentials())
-
-  const [assets, setAssets] = useState<Asset[]>([])
-  const [prices, setPrices] = useState<Record<string, number>>({})
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [lastRefreshed, setLastRefreshed] = useState<number | null>(null)
-
-  // ─── Fetch live rates on startup ───────────────────────────────────────────
-  useEffect(() => {
-    fetchLiveFxRates().then(rates => setFxRates(rates)).catch(() => {})
-  }, [])
-
-  // ─── Fetch live data from Binance API ──────────────────────────────────────
-  const loadLiveData = useCallback(async (
-    creds: ApiCredentials,
-    currentTargets: TargetAllocation
-  ) => {
-    setLoading(true)
-    setError(null)
-    setConnectionStatus('loading')
-    try {
-      const [balances, spotPrices] = await Promise.all([
-        fetchAccountBalances(creds),
-        fetchAllPrices(),
-      ])
-
-      setPrices(spotPrices)
-      const built = buildAssets(balances, spotPrices, currentTargets)
-      setAssets(built)
-      setConnectionStatus('connected')
-      setLastRefreshed(Date.now())
-
-      const total = built.reduce((s, a) => s + a.usdtValue, 0)
-      if (total > 0) {
-        saveSnapshot({
-          timestamp: Date.now(),
-          totalUSDT: total,
-          btcPrice: spotPrices['BTCUSDT'],
-        })
-      }
-    } catch (err) {
-      console.error('Binance API fetch error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to fetch Binance account data.')
-      setConnectionStatus('error')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // ─── Load demo data ────────────────────────────────────────────────────────
-  const loadDemoData = useCallback(async (
-    currentTargets: TargetAllocation
-  ) => {
-    setLoading(true)
-    setError(null)
-    try {
-      let demoPrices: Record<string, number> = {
-        BTCUSDT: 68500,
-        ETHUSDT: 3600,
-        SOLUSDT: 175,
-        BNBUSDT: 590,
-        NEARUSDT: 5.4,
-      }
-      try {
-        const livePrices = await fetchAllPrices()
-        if (livePrices && Object.keys(livePrices).length > 0) {
-          demoPrices = livePrices
-        }
-      } catch {
-        // fallback static demo prices
-      }
-
-      setPrices(demoPrices)
-      const built = buildAssets(DEMO_BALANCES, demoPrices, currentTargets)
-      setAssets(built)
-      setConnectionStatus('connected')
-      setLastRefreshed(Date.now())
-
-      const total = built.reduce((s, a) => s + a.usdtValue, 0)
-      if (total > 0) {
-        saveSnapshot({
-          timestamp: Date.now(),
-          totalUSDT: total,
-          btcPrice: demoPrices['BTCUSDT'],
-        })
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Demo data generation failed')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // ─── Initial sync ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (credentials) {
-      setIsDemoMode(false)
-      loadLiveData(credentials, targets)
-    } else if (isDemoMode) {
-      loadDemoData(targets)
-    }
-  }, [credentials, isDemoMode, loadLiveData, loadDemoData, targets])
-
-  // ─── Auto refresh every 60s ────────────────────────────────────────────────
-  useEffect(() => {
-    if (!credentials && !isDemoMode) return
-    const interval = setInterval(() => {
-      if (credentials) {
-        loadLiveData(credentials, targets)
-      } else if (isDemoMode) {
-        loadDemoData(targets)
-      }
-    }, 60_000)
-    return () => clearInterval(interval)
-  }, [credentials, isDemoMode, loadLiveData, loadDemoData, targets])
-
-  // ─── Handlers ──────────────────────────────────────────────────────────────
-  const handleCredentialsChange = (creds: ApiCredentials | null) => {
-    setCredentials(creds)
-    if (creds) {
-      // Clear out demo mock snapshots when connecting real credentials
-      localStorage.removeItem('portfolio_history')
-      setIsDemoMode(false)
-      loadLiveData(creds, targets)
-    } else {
-      clearCredentials()
-      setConnectionStatus('unconfigured')
-      setAssets([])
-    }
-  }
+  // Portfolio data synchronization hook
+  const {
+    credentials,
+    setCredentials,
+    connectionStatus,
+    isDemoMode,
+    setIsDemoMode,
+    assets,
+    setAssets,
+    prices,
+    loading,
+    error,
+    lastRefreshed,
+    handleCredentialsChange,
+    refreshData,
+    loadDemoData,
+    totalPortfolioUSDT,
+    btcPrice,
+  } = usePortfolioSync(targets)
 
   const handleTargetsChange = (newTargets: TargetAllocation) => {
-    setTargets(newTargets)
-    saveTargetAllocation(newTargets)
-    setAssets(prev => {
-      const total = prev.reduce((s, a) => s + a.usdtValue, 0)
-      const otherTargetPct = newTargets['OTHER'] ?? 0
-      return prev.map(a => {
-        const currentPct = total > 0 ? (a.usdtValue / total) * 100 : 0
-        // Mirror buildAssets: explicit target → fallback to OTHER → 0
-        let targetPct = newTargets[a.symbol] ?? 0
-        if (targetPct === 0 && otherTargetPct > 0) targetPct = otherTargetPct
-        return {
-          ...a,
-          targetPct,
-          drift: currentPct - targetPct,
-          rebalanceBand: calcRebalanceBand(targetPct, a.symbol),
-        }
-      })
-    })
+    updateTargets(newTargets, setAssets)
   }
-
-
-
-
-  const handleToggleArchive = (symbol: string) => {
-    setArchivedAssets(prev => {
-      const next = new Set(prev)
-      if (next.has(symbol)) {
-        next.delete(symbol)
-      } else {
-        next.add(symbol)
-      }
-      saveArchivedAssets(next)
-      return next
-    })
-  }
-
-  const handleCurrencyChange = (newCurrency: CurrencyCode) => {
-    setCurrency(newCurrency)
-    saveSelectedCurrency(newCurrency)
-  }
-
-  const handleRefreshRates = async () => {
-    const updated = await fetchLiveFxRates()
-    setFxRates(updated)
-  }
-
-  const totalPortfolioUSDT = useMemo(() => assets.reduce((s, a) => s + a.usdtValue, 0), [assets])
-  const btcPrice = useMemo(() => assets.find(a => a.symbol === 'BTC')?.price, [assets])
 
   // ─── Onboarding gate ───────────────────────────────────────────────────────
-  if (!credentials && !isDemoMode) {
+  if (connectionStatus === 'loading' && !isDemoMode && assets.length === 0) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'oklch(10% 0.01 240)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+          <span className="loading loading-spinner loading-lg text-warning"></span>
+          <span style={{ color: 'oklch(70% 0.01 240)', fontSize: '0.9rem' }}>Menghubungkan ke Binance...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!credentials && !isDemoMode && connectionStatus === 'unconfigured') {
     return (
       <Onboarding
         onComplete={() => {
           const creds = loadCredentials()
           setCredentials(creds)
           setIsDemoMode(false)
+          refreshData()
         }}
         onExploreDemo={() => {
           setIsDemoMode(true)
-          loadDemoData(targets)
+          void loadDemoData(targets)
         }}
       />
     )
   }
 
   const sidebarWidth = sidebarCollapsed ? 68 : 240
-
-  // Close mobile sidebar when tab changes
-  const handleTabChange = (tab: AppTab) => {
-    setActiveTab(tab)
-    setMobileSidebarOpen(false)
-  }
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'oklch(10% 0.01 240)' }}>
@@ -307,27 +129,27 @@ export default function App() {
               </svg>
             </button>
             <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <span style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#F0B90B' }}>
-                BINANCE
-              </span>
-              <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'oklch(60% 0.01 240)' }}>
-                Portfolio & Cash Allocation
-              </span>
-              {isDemoMode && (
-                <span
-                  className="badge badge-warning badge-sm mono"
-                  style={{ fontSize: '0.68rem', fontWeight: 600, padding: '0.2rem 0.5rem' }}
-                >
-                  SIMULATION / DEMO
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#F0B90B' }}>
+                  BINANCE
                 </span>
-              )}
+                <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'oklch(60% 0.01 240)' }}>
+                  Portfolio & Cash Allocation
+                </span>
+                {isDemoMode && (
+                  <span
+                    className="badge badge-warning badge-sm mono"
+                    style={{ fontSize: '0.68rem', fontWeight: 600, padding: '0.2rem 0.5rem' }}
+                  >
+                    SIMULATION / DEMO
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: '0.78rem', color: 'oklch(50% 0.01 240)', marginTop: '0.2rem' }}>
+                {lastRefreshed ? `Last updated: ${new Date(lastRefreshed).toLocaleTimeString()}` : 'Connecting…'}
+                {' · '}Currency: <strong>{currency}</strong>
+              </p>
             </div>
-            <p style={{ fontSize: '0.78rem', color: 'oklch(50% 0.01 240)', marginTop: '0.2rem' }}>
-              {lastRefreshed ? `Last updated: ${new Date(lastRefreshed).toLocaleTimeString()}` : 'Connecting…'}
-              {' · '}Currency: <strong>{currency}</strong>
-            </p>
-          </div>
           </div>
 
           <div className="app-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -335,7 +157,7 @@ export default function App() {
               id="refresh-button"
               type="button"
               className="btn btn-sm btn-ghost mono"
-              onClick={() => (credentials ? loadLiveData(credentials, targets) : loadDemoData(targets))}
+              onClick={refreshData}
               disabled={loading}
               style={{ border: '1px solid oklch(100% 0 0 / 0.1)', fontSize: '0.75rem' }}
               title="Refresh balances and ticker prices"
@@ -409,7 +231,7 @@ export default function App() {
             assets={assets}
             loading={loading}
             error={error}
-            onRetry={() => (credentials ? loadLiveData(credentials, targets) : loadDemoData(targets))}
+            onRetry={refreshData}
             currency={currency}
             rates={fxRates.rates}
             archivedAssets={archivedAssets}
@@ -445,6 +267,10 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'narrative' && (
+          <Narratives assets={assets} />
+        )}
+
         {activeTab === 'settings' && (
           <Settings
             credentials={credentials}
@@ -467,6 +293,7 @@ export default function App() {
         <div className="mobile-nav-inner">
           {([
             { id: 'dashboard' as AppTab, label: 'Dashboard', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25V18z"/></svg> },
+            { id: 'narrative' as AppTab, label: 'Narratives', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6.75v6.75"/></svg> },
             { id: 'inject' as AppTab, label: 'Inject', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg> },
             { id: 'rebalance' as AppTab, label: 'Rebalance', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg> },
             { id: 'history' as AppTab, label: 'History', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
@@ -487,5 +314,13 @@ export default function App() {
         </div>
       </nav>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthGate>
+      <PortfolioApp />
+    </AuthGate>
   )
 }

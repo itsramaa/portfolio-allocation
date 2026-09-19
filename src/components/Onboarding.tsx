@@ -1,8 +1,5 @@
 // ─── Onboarding / First-run screen ──────────────────────────────────────────
-import { useState } from 'react'
-import type { ApiCredentials } from '../types'
-import { saveCredentials } from '../storage'
-import { testConnection } from '../binanceApi'
+import { useOnboarding } from '../hooks/useOnboarding'
 
 interface OnboardingProps {
   onComplete: () => void
@@ -10,28 +7,7 @@ interface OnboardingProps {
 }
 
 export function Onboarding({ onComplete, onExploreDemo }: OnboardingProps) {
-  const [apiKey, setApiKey] = useState('')
-  const [apiSecret, setApiSecret] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showSecret, setShowSecret] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!apiKey.trim() || !apiSecret.trim()) return
-    setLoading(true)
-    setError(null)
-    const creds: ApiCredentials = { apiKey: apiKey.trim(), apiSecret: apiSecret.trim() }
-    try {
-      await testConnection(creds)
-      saveCredentials(creds)
-      onComplete()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection failed. Check your API key and secret.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { apiKey, setApiKey, apiSecret, setApiSecret, loading, error, showSecret, setShowSecret, handleSubmit } = useOnboarding(onComplete)
 
   return (
     <div style={{
@@ -67,7 +43,7 @@ export function Onboarding({ onComplete, onExploreDemo }: OnboardingProps) {
           </h1>
           <p style={{ color: 'oklch(55% 0.01 240)', fontSize: '0.9rem', lineHeight: 1.6 }}>
             Connect your Binance account to get started.<br />
-            Your API key never leaves this browser.
+            Your credentials are encrypted and stored securely on the server.
           </p>
         </div>
 
@@ -169,7 +145,7 @@ export function Onboarding({ onComplete, onExploreDemo }: OnboardingProps) {
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(68% 0.18 150)" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
             <p style={{ fontSize: '0.78rem', color: 'oklch(50% 0.01 240)', lineHeight: 1.5, margin: 0 }}>
-              Use a <strong style={{ color: 'oklch(65% 0.01 240)' }}>read-only</strong> API key. Your credentials are stored only in this browser's localStorage — never sent to any server.
+              Credentials are validated by Binance and saved encrypted in your local SQLite database on the server.
             </p>
           </div>
         </div>

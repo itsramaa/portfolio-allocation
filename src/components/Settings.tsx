@@ -1,10 +1,8 @@
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
-import { useState, useEffect, useMemo, useRef } from 'react'
 import type { ApiCredentials, Asset, TargetAllocation, CurrencyCode } from '../types'
-import { saveCredentials, saveTargetAllocation, clearCredentials } from '../storage'
-import { testConnection } from '../binanceApi'
-import { CURRENCIES, formatCurrencyValue } from '../currency'
-import { assetColor } from '../portfolio'
+import { CURRENCIES, formatCurrencyValue } from '../utils/currency'
+import { assetColor } from '../lib/portfolio'
+import { useSettings } from '../hooks/useSettings'
 
 interface SettingsProps {
   credentials: ApiCredentials | null
@@ -19,12 +17,6 @@ interface SettingsProps {
   onCurrencyChange: (currency: CurrencyCode) => void
   onRefreshRates: () => Promise<void>
 }
-
-const DEFAULT_POPULAR_COINS = [
-  'BTC', 'ETH', 'SOL', 'BNB', 'DOGE', 'XRP', 'ADA', 'AVAX', 'DOT', 'LINK',
-  'MATIC', 'LTC', 'ATOM', 'UNI', 'NEAR', 'APT', 'ARB', 'OP', 'FDUSD', 'USDT', 'USDC',
-  'FUTURES_USDT', 'OTHER'
-]
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -50,185 +42,17 @@ export function Settings({
   onCurrencyChange,
   onRefreshRates,
 }: SettingsProps) {
-  // API Key section
-  const [apiKey, setApiKey] = useState(credentials?.apiKey ?? '')
-  const [apiSecret, setApiSecret] = useState(credentials?.apiSecret ?? '')
-  const [showSecret, setShowSecret] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<'ok' | 'fail' | null>(null)
-  const [testError, setTestError] = useState<string | null>(null)
-
-  // Currency section
-  const [refreshingRates, setRefreshingRates] = useState(false)
-  const [rateRefreshSuccess, setRateRefreshSuccess] = useState(false)
-
-  // Target allocation section
-  const [localTargets, setLocalTargets] = useState<TargetAllocation>(() => ({ ...targets }))
-  const [searchTerm, setSearchTerm] = useState('')
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  const targetSum = Object.values(localTargets).reduce((s, v) => s + v, 0)
-  const targetValid = Math.abs(targetSum - 100) < 0.5
-
-  // Outside click handler for searchable dropdown
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // Build searchable coins list from prices + assets + defaults
-  const coinOptions = useMemo(() => {
-    const symbolMap = new Map<string, { symbol: string; price?: number }>()
-
-    // 1. Add default popular coins
-    for (const sym of DEFAULT_POPULAR_COINS) {
-      symbolMap.set(sym, { symbol: sym })
-    }
-
-    // 2. Add currently held assets
-    for (const a of assets) {
-      symbolMap.set(a.symbol, { symbol: a.symbol, price: a.price })
-    }
-
-    // 3. Extract symbols from Binance prices ticker map
-    for (const pair of Object.keys(prices)) {
-      if (pair.endsWith('USDT')) {
-        const baseSym = pair.replace(/USDT$/, '').toUpperCase()
-        if (baseSym.length > 0 && !symbolMap.has(baseSym)) {
-          symbolMap.set(baseSym, { symbol: baseSym, price: prices[pair] })
-        }
-      }
-    }
-
-    // Attach prices for any missing
-    for (const [sym, item] of symbolMap.entries()) {
-      if (item.price === undefined) {
-        if (sym === 'USDT' || sym === 'USDC' || sym === 'FDUSD' || sym === 'FUTURES_USDT') {
-          item.price = 1
-        } else if (prices[sym]) {
-          item.price = prices[sym]
-        } else if (prices[`${sym}USDT`]) {
-          item.price = prices[`${sym}USDT`]
-        }
-      }
-    }
-
-    return Array.from(symbolMap.values()).sort((a, b) => {
-      // Prioritize assets already in targets or held, then alphabetical
-      const aInTarget = localTargets[a.symbol] !== undefined
-      const bInTarget = localTargets[b.symbol] !== undefined
-      if (aInTarget && !bInTarget) return -1
-      if (!aInTarget && bInTarget) return 1
-      return a.symbol.localeCompare(b.symbol)
-    })
-  }, [assets, prices, localTargets])
-
-  // Filtered coin options for search input
-  const filteredCoins = useMemo(() => {
-    const term = searchTerm.trim().toUpperCase()
-    if (!term) return coinOptions
-    return coinOptions.filter(c => c.symbol.includes(term))
-  }, [coinOptions, searchTerm])
-
-  const handleTestConnection = async () => {
-    setTesting(true)
-    setTestResult(null)
-    setTestError(null)
-    try {
-      const creds: ApiCredentials = { apiKey: apiKey.trim(), apiSecret: apiSecret.trim() }
-      await testConnection(creds)
-      setTestResult('ok')
-    } catch (e) {
-      setTestResult('fail')
-      setTestError(e instanceof Error ? e.message : 'Connection failed')
-    } finally {
-      setTesting(false)
-    }
-  }
-
-  const handleSaveCredentials = () => {
-    const creds: ApiCredentials = { apiKey: apiKey.trim(), apiSecret: apiSecret.trim() }
-    saveCredentials(creds)
-    onCredentialsChange(creds)
-  }
-
-  const handleDisconnect = () => {
-    if (!confirm('Remove your API key from this browser?')) return
-    clearCredentials()
-    setApiKey('')
-    setApiSecret('')
-    onCredentialsChange(null)
-  }
-
-  const handleTargetChange = (symbol: string, val: string) => {
-    const num = parseFloat(val)
-    if (isNaN(num) || num < 0) return
-    setLocalTargets(prev => ({ ...prev, [symbol]: num }))
-  }
-
-  const handleRemoveTarget = (symbol: string) => {
-    setLocalTargets(prev => {
-      const next = { ...prev }
-      delete next[symbol]
-      return next
-    })
-  }
-
-  const handleSelectCoin = (sym: string) => {
-    const upperSym = sym.trim().toUpperCase()
-    if (!upperSym) return
-    if (localTargets[upperSym] === undefined) {
-      setLocalTargets(prev => ({ ...prev, [upperSym]: 0 }))
-    }
-    setSearchTerm('')
-    setDropdownOpen(false)
-  }
-
-  const handleSaveTargets = () => {
-    const cleaned: TargetAllocation = {}
-    for (const [k, v] of Object.entries(localTargets)) {
-      if (v > 0) cleaned[k] = v
-    }
-    saveTargetAllocation(cleaned)
-    onTargetsChange(cleaned)
-  }
-
-  // Populate targets from holdings if not yet set
-  const handleAutoPopulate = () => {
-    const auto: TargetAllocation = {}
-    for (const asset of assets) {
-      if (!localTargets[asset.symbol]) {
-        auto[asset.symbol] = parseFloat(asset.currentPct.toFixed(1))
-      }
-    }
-    setLocalTargets(prev => ({ ...prev, ...auto }))
-  }
-
-  const handleRefreshFx = async () => {
-    setRefreshingRates(true)
-    setRateRefreshSuccess(false)
-    try {
-      await onRefreshRates()
-      setRateRefreshSuccess(true)
-      setTimeout(() => setRateRefreshSuccess(false), 3000)
-    } catch {
-      // ignore
-    } finally {
-      setRefreshingRates(false)
-    }
-  }
-
-  useEffect(() => {
-    setLocalTargets({ ...targets })
-  }, [targets])
-
-  const activeRate = rates[currency] ?? 1
+  const {
+    apiKey, setApiKey, apiSecret, setApiSecret, showSecret, setShowSecret,
+    testing, savingCredentials, credentialsMessage, testResult, testError,
+    refreshingRates, rateRefreshSuccess, activeRate, logout,
+    currentPass, setCurrentPass, newPass, setNewPass, passLoading, passMsg,
+    localTargets, searchTerm, setSearchTerm, dropdownOpen, setDropdownOpen, dropdownRef,
+    targetSum, targetValid, filteredCoins,
+    handleTestConnection, handleSaveCredentials, handleDisconnect, handleChangePassword,
+    handleTargetChange, handleRemoveTarget, handleSelectCoin, handleSaveTargets,
+    handleAutoPopulate, handleRefreshFx,
+  } = useSettings({ credentials, targets, assets, prices, currency, rates, onCredentialsChange, onTargetsChange, onRefreshRates })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', maxWidth: 640 }} className="fade-up">
@@ -328,6 +152,15 @@ export function Settings({
       <div className="surface-card" style={{ padding: '1.75rem' }}>
         <SectionTitle>API Configuration</SectionTitle>
 
+        {credentials && (
+          <div role="status" className="alert alert-success mb-5" style={{ fontSize: '0.8rem' }}>
+            <span>✓ API credentials sudah terkonfigurasi di server.</span>
+          </div>
+        )}
+
+        <p style={{ fontSize: '0.78rem', color: 'oklch(55% 0.01 240)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+          Credentials disimpan terenkripsi di server. Setelah disimpan, field akan dikosongkan dan secret tidak akan pernah ditampilkan kembali.
+        </p>
         <div style={{ marginBottom: '1.25rem' }}>
           <label htmlFor="settings-api-key" style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', display: 'block', marginBottom: '0.5rem' }}>
             API Key
@@ -374,6 +207,12 @@ export function Settings({
           </div>
         </div>
 
+        {credentialsMessage && (
+          <div role="alert" className={`alert ${credentialsMessage.type === 'ok' ? 'alert-success' : 'alert-error'} mb-4`} style={{ fontSize: '0.82rem' }}>
+            {credentialsMessage.type === 'ok' ? '✓' : '✕'} {credentialsMessage.text}
+          </div>
+        )}
+
         {testResult === 'ok' && (
           <div role="alert" className="alert alert-success mb-4" style={{ fontSize: '0.82rem' }}>
             ✓ Connection successful! Read-only permissions confirmed.
@@ -402,9 +241,10 @@ export function Settings({
             type="button"
             className="btn btn-primary btn-sm"
             onClick={handleSaveCredentials}
-            disabled={!apiKey || !apiSecret}
+            disabled={savingCredentials || testing || !apiKey || !apiSecret}
           >
-            Save Credentials
+            {savingCredentials ? <span className="loading loading-spinner loading-xs" /> : null}
+            {savingCredentials ? 'Saving…' : 'Save Credentials'}
           </button>
           {credentials && (
             <button
@@ -689,6 +529,109 @@ export function Settings({
         </p>
       </div>
 
+      {/* Security & Access Section (SQLite & Password) */}
+      <div className="surface-card" style={{ padding: '1.5rem' }}>
+        <SectionTitle>Security & Access Control</SectionTitle>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.85rem 1.25rem',
+              borderRadius: '0.5rem',
+              background: 'oklch(18% 0.01 240)',
+              border: '1px solid oklch(100% 0 0 / 0.08)',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'oklch(90% 0.01 240)' }}>
+                Database Storage: <span style={{ color: '#22c55e' }}>SQLite (Go Server)</span>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.2rem' }}>
+                Semua konfigurasi, target, history, dan API keys tersimpan aman di server database SQLite lokal.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline btn-error mono"
+              onClick={logout}
+              style={{ fontSize: '0.75rem' }}
+            >
+              Lock / Logout
+            </button>
+          </div>
+
+          <form onSubmit={handleChangePassword} style={{ maxWidth: 420 }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'oklch(85% 0.01 240)', marginBottom: '0.75rem' }}>
+              Ubah Password Dashboard
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', color: 'oklch(60% 0.01 240)', marginBottom: '0.25rem' }}>
+                  Password Saat Ini
+                </label>
+                <input
+                  type="password"
+                  className="input input-sm w-full mono"
+                  value={currentPass}
+                  onChange={e => setCurrentPass(e.target.value)}
+                  placeholder="Password saat ini…"
+                  required
+                  style={{ background: 'oklch(18% 0.01 240)', border: '1px solid oklch(100% 0 0 / 0.1)' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', color: 'oklch(60% 0.01 240)', marginBottom: '0.25rem' }}>
+                  Password Baru (min. 4 karakter)
+                </label>
+                <input
+                  type="password"
+                  className="input input-sm w-full mono"
+                  value={newPass}
+                  onChange={e => setNewPass(e.target.value)}
+                  placeholder="Password baru…"
+                  required
+                  minLength={4}
+                  style={{ background: 'oklch(18% 0.01 240)', border: '1px solid oklch(100% 0 0 / 0.1)' }}
+                />
+              </div>
+
+              {passMsg && (
+                <div
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.75rem',
+                    background: passMsg.type === 'ok' ? 'oklch(25% 0.08 140 / 0.4)' : 'oklch(25% 0.08 25 / 0.4)',
+                    color: passMsg.type === 'ok' ? '#22c55e' : '#ef4444',
+                    border: `1px solid ${passMsg.type === 'ok' ? 'oklch(50% 0.15 140 / 0.4)' : 'oklch(50% 0.15 25 / 0.4)'}`,
+                  }}
+                >
+                  {passMsg.text}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={passLoading || !currentPass || !newPass}
+                className="btn btn-sm btn-ghost mono"
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: '0.25rem',
+                  border: '1px solid oklch(100% 0 0 / 0.15)',
+                  fontSize: '0.75rem',
+                }}
+              >
+                {passLoading ? 'Menyimpan…' : 'Perbarui Password'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   )
 }
