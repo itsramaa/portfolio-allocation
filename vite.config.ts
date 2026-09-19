@@ -27,7 +27,7 @@ export default defineConfig({
         }
       },
       '/bapi': {
-        target: 'https://api.binance.com',
+        target: 'https://www.binance.com',
         changeOrigin: true,
         secure: true,
         configure: (proxy, options) => {
