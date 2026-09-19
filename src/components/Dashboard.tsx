@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine,
 } from 'recharts'
 import type { Asset, CurrencyCode } from '../types'
-import { fmtPct, fmtAmount, REBALANCE_FLOOR_PP } from '../portfolio'
+import { fmtPct, fmtAmount, REBALANCE_FLOOR_PP, MIN_DOLLAR_DRIFT } from '../portfolio'
 import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
 import { CurrencyDisplay } from './CurrencyDisplay'
 
@@ -127,7 +127,12 @@ export function Dashboard({
   )
 
   const triggeredAssets = useMemo(() =>
-    assets.filter(a => a.rebalanceBand > 0 && Math.abs(a.drift) >= a.rebalanceBand),
+    assets.filter(a =>
+      a.rebalanceBand > 0 &&
+      Math.abs(a.drift) >= a.rebalanceBand &&
+      a.usdtValue > 0 &&
+      Math.abs(a.usdtValue - (a.targetPct / 100) * assets.reduce((s, x) => s + x.usdtValue, 0)) >= MIN_DOLLAR_DRIFT
+    ),
     [assets]
   )
 
@@ -469,7 +474,9 @@ export function Dashboard({
                       <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
                         {/* Drift value + rebalance badge */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          {asset.rebalanceBand > 0 && Math.abs(asset.drift) >= asset.rebalanceBand && (
+                          {asset.rebalanceBand > 0 &&
+                           Math.abs(asset.drift) >= asset.rebalanceBand &&
+                           Math.abs(asset.usdtValue - (asset.targetPct / 100) * totalUSDT) >= MIN_DOLLAR_DRIFT && (
                             <span style={{
                               background: 'oklch(40% 0.22 30 / 0.2)',
                               color: '#f87171',
@@ -489,7 +496,7 @@ export function Dashboard({
                         {/* Band hint */}
                         {asset.rebalanceBand > 0 && (
                           <span style={{ fontSize: '0.65rem', color: 'oklch(40% 0.01 240)', fontFamily: 'JetBrains Mono, monospace' }}>
-                            band ±{asset.rebalanceBand.toFixed(1)}pp
+                            band ±{asset.rebalanceBand.toFixed(1)}pp &amp; ≥${MIN_DOLLAR_DRIFT}
                           </span>
                         )}
                       </div>

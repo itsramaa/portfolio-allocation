@@ -1,7 +1,7 @@
 // ─── Rebalance Tab ───────────────────────────────────────────────────────────
 import { useState, useMemo } from 'react'
 import type { Asset, TargetAllocation, CurrencyCode } from '../types'
-import { calculateRebalance, fmtUSDT, fmtPct, assetColor, MIN_ORDER_USDT, REBALANCE_RELATIVE, REBALANCE_FLOOR_PP, type RebalanceItem } from '../portfolio'
+import { calculateRebalance, fmtUSDT, fmtPct, assetColor, MIN_ORDER_USDT, MIN_DOLLAR_DRIFT, REBALANCE_RELATIVE, REBALANCE_FLOOR_PP, type RebalanceItem } from '../portfolio'
 import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
 import { CurrencyDisplay } from './CurrencyDisplay'
 
@@ -179,10 +179,18 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
             <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'oklch(95% 0.01 240)', letterSpacing: '-0.02em' }}>
               Auto Rebalance Calculator
             </h2>
-            <p style={{ fontSize: '0.82rem', color: 'oklch(55% 0.01 240)', marginTop: '0.25rem', lineHeight: 1.5 }}>
-              Calculates sell and buy orders to reach target allocation.
-              Trigger band: <span style={{ color: 'oklch(75% 0.01 240)', fontFamily: 'JetBrains Mono, monospace' }}>max({(REBALANCE_RELATIVE * 100).toFixed(0)}% × target, ±{REBALANCE_FLOOR_PP}pp)</span>
-              &ensp;·&ensp; USDT/Futures buckets are excluded from auto-trigger.
+            <p style={{ fontSize: '0.82rem', color: 'oklch(55% 0.01 240)', marginTop: '0.25rem', lineHeight: 1.6 }}>
+              Calculates sell and buy orders to reach target allocation. Two-gate trigger:
+              <br />
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'oklch(70% 0.01 240)', fontSize: '0.78rem' }}>
+                Gate 1: |drift| ≥ max({(REBALANCE_RELATIVE*100).toFixed(0)}% × target, ±{REBALANCE_FLOOR_PP}pp)
+              </span>
+              <br />
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'oklch(70% 0.01 240)', fontSize: '0.78rem' }}>
+                Gate 2: dollar drift ≥ ${MIN_DOLLAR_DRIFT} (economic significance)
+              </span>
+              <br />
+              <span style={{ color: 'oklch(45% 0.01 240)', fontSize: '0.78rem' }}>USDT &amp; Futures are excluded (liquidity buckets).</span>
             </p>
           </div>
         </div>

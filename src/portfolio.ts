@@ -165,6 +165,13 @@ export function calculateInjection(
 // Binance minimum order value (notional) — orders below this cannot be executed
 export const MIN_ORDER_USDT = 5
 
+// Minimum dollar drift required to actually trigger a rebalance.
+// Gate #2: even if the % band is breached, don't rebalance if the dollar amount
+// is too small to justify transaction costs.
+// Formula intent: transaction cost should be < ~2% of the amount being rebalanced.
+// At 0.1% Binance fee, $25 drift costs ~$0.05 in fee = 0.2% — well within tolerance.
+export const MIN_DOLLAR_DRIFT = 25
+
 export interface RebalanceItem {
   symbol: string
   action: 'sell' | 'buy'
@@ -226,7 +233,10 @@ export function calculateRebalance(
     const belowMinOrder = amountUSDT < MIN_ORDER_USDT
     const driftPp = Math.abs(currentPct - targetPct)
     const band = calcRebalanceBand(targetPct, sym)
-    const isTriggered = band > 0 && driftPp >= band
+    // Two-gate trigger:
+    //   Gate 1: % drift exceeds band  (max(25% × target, 3pp))
+    //   Gate 2: dollar drift >= MIN_DOLLAR_DRIFT  (economic significance)
+    const isTriggered = band > 0 && driftPp >= band && amountUSDT >= MIN_DOLLAR_DRIFT
 
     if (diff > 0) {
       // Overweight or un-allocated asset -> Sell
