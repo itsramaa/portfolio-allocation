@@ -73,6 +73,8 @@ export function buildAssets(
     const STABLES = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'TUSD', 'DAI', 'USDS', 'USDP']
     if (STABLES.includes(sym)) {
       price = 1
+    } else if (prices[sym]) {
+      price = prices[sym]
     } else if (prices[`${sym}USDT`]) {
       price = prices[`${sym}USDT`]
     } else if (prices[`${sym}FDUSD`]) {
@@ -112,21 +114,24 @@ export function buildAssets(
 
   // Also include Binance Alpha tokens configured by user that aren't in spot balances yet
   for (const [sym, alpha] of alphaMap.entries()) {
-    if (!processedSymbols.has(sym) && alpha.amount > 0 && alpha.priceUSDT > 0) {
-      const usdtValue = alpha.amount * alpha.priceUSDT
-      if (usdtValue >= 0.05) {
-        assets.push({
-          symbol: sym,
-          quoteSymbol: `${sym}USDT`,
-          amount: alpha.amount,
-          usdtValue,
-          price: alpha.priceUSDT,
-          currentPct: 0,
-          targetPct: targets[sym] ?? alpha.targetPct ?? 0,
-          drift: 0,
-          logoColor: '#A855F7',
-          isAlpha: true,
-        })
+    if (!processedSymbols.has(sym) && alpha.amount > 0) {
+      const livePrice = prices[sym] || prices[`${sym}USDT`] || alpha.priceUSDT || 0
+      if (livePrice > 0) {
+        const usdtValue = alpha.amount * livePrice
+        if (usdtValue >= 0.05) {
+          assets.push({
+            symbol: sym,
+            quoteSymbol: `${sym}USDT`,
+            amount: alpha.amount,
+            usdtValue,
+            price: livePrice,
+            currentPct: 0,
+            targetPct: targets[sym] ?? alpha.targetPct ?? 0,
+            drift: 0,
+            logoColor: '#A855F7',
+            isAlpha: true,
+          })
+        }
       }
     }
   }
