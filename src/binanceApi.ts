@@ -172,7 +172,27 @@ export async function fetchAccountBalances(creds: ApiCredentials): Promise<Array
     throw err
   }
 
-  // 2. Also query Funding Wallet (where P2P crypto deposits land)
+  // 2. Query User Asset Details (/sapi/v3/asset/getUserAsset - includes Alpha & Web3 tokens)
+  try {
+    const userAssets = await signedPost('/sapi/v3/asset/getUserAsset', {}, creds)
+    if (Array.isArray(userAssets)) {
+      for (const u of userAssets) {
+        const free = parseFloat(u.free) || 0
+        const locked = (parseFloat(u.locked) || 0) + (parseFloat(u.freeze) || 0) + (parseFloat(u.withdrawing) || 0)
+        if (free + locked > 0) {
+          const current = assetMap.get(u.asset) || { free: 0, locked: 0 }
+          assetMap.set(u.asset, {
+            free: Math.max(current.free, free),
+            locked: Math.max(current.locked, locked),
+          })
+        }
+      }
+    }
+  } catch {
+    // Silently ignore if API key lacks user asset permissions
+  }
+
+  // 3. Also query Funding Wallet (where P2P crypto deposits land)
   try {
     const fundingData = await signedPost('/sapi/v1/asset/get-funding-asset', {}, creds)
     if (Array.isArray(fundingData)) {
@@ -192,7 +212,7 @@ export async function fetchAccountBalances(creds: ApiCredentials): Promise<Array
     // Silently ignore if API key lacks funding permissions
   }
 
-  // 3. Also query Simple Earn Flexible positions (where yield-earning assets live)
+  // 4. Also query Simple Earn Flexible positions (where yield-earning assets live)
   try {
     const earnData = await signedGet('/sapi/v1/simple-earn/flexible/position', { size: 100 }, creds)
     if (earnData && Array.isArray(earnData.rows)) {
