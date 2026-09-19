@@ -38,6 +38,16 @@ export default defineConfig({
             console.log('Proxying Alpha request:', req.method, req.url, '->', String(options.target ?? '') + (req.url ?? ''))
           })
         }
+      },
+      '/fapi': {
+        target: 'https://fapi.binance.com',
+        changeOrigin: true,
+        secure: true,
+      },
+      '/dapi': {
+        target: 'https://dapi.binance.com',
+        changeOrigin: true,
+        secure: true,
       }
     }
   }

@@ -67,6 +67,13 @@ async function hmac(secret: string, message: string): Promise<string> {
   return sha256.hmac(secret, message)
 }
 
+function getEndpointUrl(path: string): string {
+  if (path.startsWith('/fapi') || path.startsWith('/dapi') || path.startsWith('/sapi') || path.startsWith('/bapi')) {
+    return path
+  }
+  return `${BASE}${path}`
+}
+
 // ─── Signed GET request with auto-retry on timestamp drift ─────────────────
 async function signedGet(
   path: string,
@@ -86,7 +93,9 @@ async function signedGet(
   const signature = await hmac(creds.apiSecret, qs.toString())
   qs.append('signature', signature)
 
-  const res = await fetch(`${BASE}${path}?${qs.toString()}`, {
+  const url = `${getEndpointUrl(path)}?${qs.toString()}`
+
+  const res = await fetch(url, {
     headers: { 'X-MBX-APIKEY': creds.apiKey }
   })
 
@@ -128,7 +137,9 @@ async function signedPost(
   const signature = await hmac(creds.apiSecret, qs.toString())
   qs.append('signature', signature)
 
-  const res = await fetch(`${BASE}${path}?${qs.toString()}`, {
+  const url = `${getEndpointUrl(path)}?${qs.toString()}`
+
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'X-MBX-APIKEY': creds.apiKey }
   })
@@ -229,6 +240,44 @@ export async function fetchAccountBalances(creds: ApiCredentials): Promise<Array
     }
   } catch {
     // Silently ignore if API key lacks earn permissions
+  }
+
+  // 5. Query USDT-M Futures Balances (/fapi/v2/balance)
+  try {
+    const fapiData = await signedGet('/fapi/v2/balance', {}, creds)
+    if (Array.isArray(fapiData)) {
+      for (const f of fapiData) {
+        const bal = parseFloat(f.balance) || parseFloat(f.crossWalletBalance) || 0
+        if (bal > 0) {
+          const current = assetMap.get(f.asset) || { free: 0, locked: 0 }
+          assetMap.set(f.asset, {
+            free: current.free + bal,
+            locked: current.locked,
+          })
+        }
+      }
+    }
+  } catch {
+    // Silently ignore if API key lacks Futures permissions or futures account is uninitialized
+  }
+
+  // 6. Query COIN-M Futures Balances (/dapi/v1/balance)
+  try {
+    const dapiData = await signedGet('/dapi/v1/balance', {}, creds)
+    if (Array.isArray(dapiData)) {
+      for (const d of dapiData) {
+        const bal = parseFloat(d.balance) || parseFloat(d.crossWalletBalance) || 0
+        if (bal > 0) {
+          const current = assetMap.get(d.asset) || { free: 0, locked: 0 }
+          assetMap.set(d.asset, {
+            free: current.free + bal,
+            locked: current.locked,
+          })
+        }
+      }
+    }
+  } catch {
+    // Silently ignore if API key lacks Futures permissions or futures account is uninitialized
   }
 
   return Array.from(assetMap.entries()).map(([asset, { free, locked }]) => ({
