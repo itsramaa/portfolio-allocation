@@ -48,6 +48,11 @@ export default defineConfig({
         target: 'https://dapi.binance.com',
         changeOrigin: true,
         secure: true,
+      },
+      '/sapi': {
+        target: 'https://api.binance.com',
+        changeOrigin: true,
+        secure: true,
       }
     }
   }
