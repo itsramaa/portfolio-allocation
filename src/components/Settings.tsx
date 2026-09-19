@@ -1,26 +1,30 @@
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
-import { useState, useEffect } from 'react'
-import type { ApiCredentials, Asset, TargetAllocation, CurrencyCode, AlphaAssetConfig } from '../types'
-import type { BinanceAlphaToken } from '../binanceApi'
-import { saveCredentials, saveTargetAllocation, clearCredentials, saveAlphaAssets } from '../storage'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import type { ApiCredentials, Asset, TargetAllocation, CurrencyCode } from '../types'
+import { saveCredentials, saveTargetAllocation, clearCredentials } from '../storage'
 import { testConnection } from '../binanceApi'
 import { CURRENCIES, formatCurrencyValue } from '../currency'
+import { assetColor } from '../portfolio'
 
 interface SettingsProps {
   credentials: ApiCredentials | null
   targets: TargetAllocation
   assets: Asset[]
+  prices?: Record<string, number>
   currency: CurrencyCode
   rates: Record<string, number>
   ratesLastUpdated: number
-  alphaAssets: AlphaAssetConfig[]
-  alphaTokenList?: BinanceAlphaToken[]
   onCredentialsChange: (creds: ApiCredentials | null) => void
   onTargetsChange: (targets: TargetAllocation) => void
   onCurrencyChange: (currency: CurrencyCode) => void
   onRefreshRates: () => Promise<void>
-  onAlphaAssetsChange: (assets: AlphaAssetConfig[]) => void
 }
+
+const DEFAULT_POPULAR_COINS = [
+  'BTC', 'ETH', 'SOL', 'BNB', 'DOGE', 'XRP', 'ADA', 'AVAX', 'DOT', 'LINK',
+  'MATIC', 'LTC', 'ATOM', 'UNI', 'NEAR', 'APT', 'ARB', 'OP', 'FDUSD', 'USDT', 'USDC',
+  'FUTURES_USDT', 'OTHER'
+]
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -37,16 +41,14 @@ export function Settings({
   credentials,
   targets,
   assets,
+  prices = {},
   currency,
   rates,
   ratesLastUpdated,
-  alphaAssets = [],
-  alphaTokenList = [],
   onCredentialsChange,
   onTargetsChange,
   onCurrencyChange,
   onRefreshRates,
-  onAlphaAssetsChange,
 }: SettingsProps) {
   // API Key section
   const [apiKey, setApiKey] = useState(credentials?.apiKey ?? '')
@@ -62,17 +64,77 @@ export function Settings({
 
   // Target allocation section
   const [localTargets, setLocalTargets] = useState<TargetAllocation>(() => ({ ...targets }))
-  const [newSymbol, setNewSymbol] = useState('')
-
-  // Binance Alpha section
-  const [alphaSymbol, setAlphaSymbol] = useState('')
-  const [alphaName, setAlphaName] = useState('')
-  const [alphaAmount, setAlphaAmount] = useState('')
-  const [alphaPrice, setAlphaPrice] = useState('')
-  const [alphaTarget, setAlphaTarget] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const targetSum = Object.values(localTargets).reduce((s, v) => s + v, 0)
   const targetValid = Math.abs(targetSum - 100) < 0.5
+
+  // Outside click handler for searchable dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Build searchable coins list from prices + assets + defaults
+  const coinOptions = useMemo(() => {
+    const symbolMap = new Map<string, { symbol: string; price?: number }>()
+
+    // 1. Add default popular coins
+    for (const sym of DEFAULT_POPULAR_COINS) {
+      symbolMap.set(sym, { symbol: sym })
+    }
+
+    // 2. Add currently held assets
+    for (const a of assets) {
+      symbolMap.set(a.symbol, { symbol: a.symbol, price: a.price })
+    }
+
+    // 3. Extract symbols from Binance prices ticker map
+    for (const pair of Object.keys(prices)) {
+      if (pair.endsWith('USDT')) {
+        const baseSym = pair.replace(/USDT$/, '').toUpperCase()
+        if (baseSym.length > 0 && !symbolMap.has(baseSym)) {
+          symbolMap.set(baseSym, { symbol: baseSym, price: prices[pair] })
+        }
+      }
+    }
+
+    // Attach prices for any missing
+    for (const [sym, item] of symbolMap.entries()) {
+      if (item.price === undefined) {
+        if (sym === 'USDT' || sym === 'USDC' || sym === 'FDUSD' || sym === 'FUTURES_USDT') {
+          item.price = 1
+        } else if (prices[sym]) {
+          item.price = prices[sym]
+        } else if (prices[`${sym}USDT`]) {
+          item.price = prices[`${sym}USDT`]
+        }
+      }
+    }
+
+    return Array.from(symbolMap.values()).sort((a, b) => {
+      // Prioritize assets already in targets or held, then alphabetical
+      const aInTarget = localTargets[a.symbol] !== undefined
+      const bInTarget = localTargets[b.symbol] !== undefined
+      if (aInTarget && !bInTarget) return -1
+      if (!aInTarget && bInTarget) return 1
+      return a.symbol.localeCompare(b.symbol)
+    })
+  }, [assets, prices, localTargets])
+
+  // Filtered coin options for search input
+  const filteredCoins = useMemo(() => {
+    const term = searchTerm.trim().toUpperCase()
+    if (!term) return coinOptions
+    return coinOptions.filter(c => c.symbol.includes(term))
+  }, [coinOptions, searchTerm])
 
   const handleTestConnection = async () => {
     setTesting(true)
@@ -118,12 +180,14 @@ export function Settings({
     })
   }
 
-  const handleAddSymbol = () => {
-    const sym = newSymbol.trim().toUpperCase()
-    if (!sym) return
-    if (localTargets[sym] !== undefined) return
-    setLocalTargets(prev => ({ ...prev, [sym]: 0 }))
-    setNewSymbol('')
+  const handleSelectCoin = (sym: string) => {
+    const upperSym = sym.trim().toUpperCase()
+    if (!upperSym) return
+    if (localTargets[upperSym] === undefined) {
+      setLocalTargets(prev => ({ ...prev, [upperSym]: 0 }))
+    }
+    setSearchTerm('')
+    setDropdownOpen(false)
   }
 
   const handleSaveTargets = () => {
@@ -158,52 +222,6 @@ export function Settings({
     } finally {
       setRefreshingRates(false)
     }
-  }
-
-  const handleAddAlpha = () => {
-    const sym = alphaSymbol.trim().toUpperCase()
-    if (!sym) return
-    const amount = parseFloat(alphaAmount) || 0
-    const price = parseFloat(alphaPrice) || 0
-    const target = parseFloat(alphaTarget) || 0
-
-    const updated: AlphaAssetConfig[] = [
-      ...alphaAssets.filter(a => a.symbol !== sym),
-      {
-        id: sym.toLowerCase(),
-        symbol: sym,
-        name: alphaName.trim() || sym,
-        amount,
-        priceUSDT: price,
-        targetPct: target,
-      },
-    ]
-    saveAlphaAssets(updated)
-    onAlphaAssetsChange(updated)
-
-    if (target > 0) {
-      setLocalTargets(prev => ({ ...prev, [sym]: target }))
-    }
-
-    setAlphaSymbol('')
-    setAlphaName('')
-    setAlphaAmount('')
-    setAlphaPrice('')
-    setAlphaTarget('')
-  }
-
-  const handleRemoveAlpha = (sym: string) => {
-    const updated = alphaAssets.filter(a => a.symbol !== sym)
-    saveAlphaAssets(updated)
-    onAlphaAssetsChange(updated)
-  }
-
-  const handlePresetAlpha = (preset: { symbol: string; name: string; priceUSDT: number; targetPct: number }) => {
-    setAlphaSymbol(preset.symbol)
-    setAlphaName(preset.name)
-    setAlphaPrice(String(preset.priceUSDT))
-    setAlphaTarget(String(preset.targetPct))
-    setAlphaAmount('100')
   }
 
   useEffect(() => {
@@ -422,9 +440,30 @@ export function Settings({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
           {Object.entries(localTargets).map(([sym, val]) => (
             <div key={sym} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 32px', gap: '0.75rem', alignItems: 'center' }}>
-              <span className="mono" style={{ fontWeight: 600, color: 'oklch(90% 0.01 240)', fontSize: '0.9rem' }}>
-                {sym}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    background: `${assetColor(sym, sym.startsWith('FUTURES'))}22`,
+                    border: `1px solid ${assetColor(sym, sym.startsWith('FUTURES'))}44`,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.6rem',
+                    fontWeight: 700,
+                    color: assetColor(sym, sym.startsWith('FUTURES')),
+                    fontFamily: 'JetBrains Mono, monospace',
+                  }}
+                >
+                  {sym.slice(0, 3)}
+                </span>
+                <span className="mono" style={{ fontWeight: 600, color: 'oklch(90% 0.01 240)', fontSize: '0.9rem' }}>
+                  {sym}
+                </span>
+              </div>
+
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <input
                   id={`target-weight-${sym}`}
@@ -455,7 +494,7 @@ export function Settings({
         </div>
 
         {/* Sum indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
           <div style={{ flex: 1, height: 6, background: 'oklch(20% 0.015 240)', borderRadius: 3, overflow: 'hidden' }}>
             <div style={{
               height: '100%',
@@ -469,54 +508,171 @@ export function Settings({
           </span>
         </div>
 
-        {/* Add new symbol */}
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          <input
-            id="settings-add-symbol"
-            type="text"
-            className="input input-sm mono"
-            placeholder="Add symbol (e.g. BTC, ETH)"
-            value={newSymbol}
-            onChange={e => setNewSymbol(e.target.value.toUpperCase())}
-            onKeyDown={e => e.key === 'Enter' && handleAddSymbol()}
-            style={{ flex: 1 }}
-          />
-          <button
-            id="settings-add-symbol-btn"
-            className="btn btn-sm btn-ghost"
-            onClick={handleAddSymbol}
-            disabled={!newSymbol.trim()}
-            style={{ border: '1px solid oklch(100% 0 0 / 0.1)' }}
-          >
-            + Add
-          </button>
-          <button
-            id="settings-add-futures"
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={() => {
-              if (localTargets['FUTURES_USDT'] === undefined) {
-                setLocalTargets(prev => ({ ...prev, FUTURES_USDT: 0 }))
-              }
-            }}
-            disabled={localTargets.hasOwnProperty('FUTURES_USDT')}
-            style={{ border: '1px solid oklch(100% 0 0 / 0.1)', color: '#02C076' }}
-          >
-            + Futures USDT
-          </button>
-          <button
-            id="settings-add-other"
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={() => {
-              setNewSymbol('OTHER')
-              handleAddSymbol()
-            }}
-            disabled={localTargets.hasOwnProperty('OTHER')}
-            style={{ border: '1px solid oklch(100% 0 0 / 0.1)', color: '#F0B90B' }}
-          >
-            + Other
-          </button>
+        {/* ── Searchable Coin Dropdown Selector ───────────────────────────────── */}
+        <div style={{ marginBottom: '1.5rem', position: 'relative' }} ref={dropdownRef}>
+          <label style={{ fontSize: '0.75rem', color: 'oklch(60% 0.01 240)', display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>
+            Add Coin to Target Allocation
+          </label>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <input
+                id="settings-coin-search-input"
+                type="text"
+                className="input input-sm w-full mono"
+                placeholder="🔍 Search coin (e.g. BTC, ETH, SOL, BNB...)"
+                value={searchTerm}
+                onChange={e => {
+                  setSearchTerm(e.target.value)
+                  setDropdownOpen(true)
+                }}
+                onFocus={() => setDropdownOpen(true)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && searchTerm.trim()) {
+                    handleSelectCoin(searchTerm)
+                  }
+                }}
+                style={{ fontSize: '0.82rem' }}
+                autoComplete="off"
+              />
+
+              {/* Searchable Dropdown Overlay */}
+              {dropdownOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '0.35rem',
+                    maxHeight: '230px',
+                    overflowY: 'auto',
+                    background: 'oklch(16% 0.015 240)',
+                    border: '1px solid oklch(100% 0 0 / 0.15)',
+                    borderRadius: '0.5rem',
+                    boxShadow: '0 12px 28px rgba(0, 0, 0, 0.45)',
+                    zIndex: 100,
+                    padding: '0.35rem',
+                  }}
+                >
+                  {filteredCoins.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectCoin(searchTerm)}
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 0.85rem',
+                        textAlign: 'left',
+                        background: 'none',
+                        border: 'none',
+                        color: '#F0B90B',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        borderRadius: '0.25rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                      className="table-row-hover"
+                    >
+                      <span className="mono">+ Add custom coin "<strong>{searchTerm.toUpperCase()}</strong>"</span>
+                      <span className="badge badge-sm badge-warning">Custom</span>
+                    </button>
+                  ) : (
+                    filteredCoins.map(coin => {
+                      const isAdded = localTargets[coin.symbol] !== undefined
+                      const isFutures = coin.symbol.startsWith('FUTURES')
+                      const color = assetColor(coin.symbol, isFutures)
+
+                      return (
+                        <button
+                          key={coin.symbol}
+                          type="button"
+                          disabled={isAdded}
+                          onClick={() => handleSelectCoin(coin.symbol)}
+                          style={{
+                            width: '100%',
+                            padding: '0.5rem 0.75rem',
+                            textAlign: 'left',
+                            background: isAdded ? 'oklch(14% 0 0 / 0.3)' : 'none',
+                            border: 'none',
+                            color: isAdded ? 'oklch(50% 0.01 240)' : 'oklch(90% 0.01 240)',
+                            cursor: isAdded ? 'not-allowed' : 'pointer',
+                            fontSize: '0.8rem',
+                            borderRadius: '0.25rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            transition: 'background 0.12s ease',
+                          }}
+                          className={isAdded ? '' : 'table-row-hover'}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <span
+                              style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: '50%',
+                                background: `${color}22`,
+                                border: `1px solid ${color}44`,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.6rem',
+                                fontWeight: 700,
+                                color,
+                                fontFamily: 'JetBrains Mono, monospace',
+                              }}
+                            >
+                              {coin.symbol.slice(0, 3)}
+                            </span>
+                            <span className="mono" style={{ fontWeight: 700 }}>
+                              {coin.symbol}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            {coin.price !== undefined && coin.price > 0 && (
+                              <span className="mono" style={{ fontSize: '0.72rem', color: 'oklch(60% 0.01 240)' }}>
+                                ${coin.price >= 1000 ? coin.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : coin.price.toFixed(4)}
+                              </span>
+                            )}
+                            {isAdded ? (
+                              <span style={{ fontSize: '0.68rem', color: '#22c55e', fontWeight: 600 }}>In Target</span>
+                            ) : (
+                              <span style={{ fontSize: '0.68rem', color: '#F0B90B', fontWeight: 600 }}>+ Select</span>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Shortcut Buttons */}
+            <button
+              id="settings-add-futures"
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => handleSelectCoin('FUTURES_USDT')}
+              disabled={localTargets.hasOwnProperty('FUTURES_USDT')}
+              style={{ border: '1px solid oklch(100% 0 0 / 0.1)', color: '#02C076' }}
+            >
+              + Futures USDT
+            </button>
+            <button
+              id="settings-add-other"
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => handleSelectCoin('OTHER')}
+              disabled={localTargets.hasOwnProperty('OTHER')}
+              style={{ border: '1px solid oklch(100% 0 0 / 0.1)', color: '#F0B90B' }}
+            >
+              + Other
+            </button>
+          </div>
         </div>
 
         <button
@@ -529,278 +685,10 @@ export function Settings({
         </button>
 
         <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'oklch(45% 0.01 240)' }}>
-          Target allocations should sum to 100%. Use "Other" as a catch-all for assets not explicitly configured (e.g. GRASS, VIRTUAL, etc.).
+          Target allocations should sum to 100%. Select coins from the searchable dropdown above or use "Other" as a catch-all for remaining assets.
         </p>
       </div>
 
-      {/* ── Binance Alpha & Early-Stage Assets ────────────────────────── */}
-      <div className="surface-card" style={{ padding: '1.75rem', border: '1px solid oklch(60% 0.25 300 / 0.25)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.5rem' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '1.1rem' }}>⚡</span>
-              <SectionTitle>Binance Alpha & Pre-Listing Assets</SectionTitle>
-            </div>
-            <p style={{ fontSize: '0.82rem', color: 'oklch(60% 0.01 240)', lineHeight: 1.5, marginTop: '-0.75rem' }}>
-              Configure pre-market, early-stage, or on-chain tokens from Binance Alpha / Binance Web3. These assets are tracked with a distinctive purple badge and participate in portfolio metrics and cash injection buy plans.
-            </p>
-          </div>
-        </div>
-
-        {/* Popular Presets */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
-            Quick Presets
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {[
-              { symbol: 'PONS', name: 'Ponke on Sol', priceUSDT: 0.15, targetPct: 5 },
-              { symbol: 'MONAD', name: 'Monad Pre-market', priceUSDT: 4.5, targetPct: 5 },
-              { symbol: 'GRASS', name: 'Grass Network', priceUSDT: 1.8, targetPct: 3 },
-              { symbol: 'VIRTUAL', name: 'Virtuals Protocol', priceUSDT: 1.2, targetPct: 3 },
-            ].map(preset => (
-              <button
-                key={preset.symbol}
-                type="button"
-                className="btn btn-xs btn-ghost mono"
-                style={{
-                  border: '1px solid oklch(60% 0.25 300 / 0.3)',
-                  color: '#C084FC',
-                  background: 'oklch(60% 0.25 300 / 0.1)',
-                }}
-                onClick={() => handlePresetAlpha(preset)}
-              >
-                + {preset.symbol}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Existing Alpha Assets List */}
-        {alphaAssets.length > 0 && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
-              Configured Alpha Tokens ({alphaAssets.length})
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {alphaAssets.map(alpha => {
-                const totalVal = alpha.amount * alpha.priceUSDT
-                return (
-                  <div
-                    key={alpha.symbol}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '0.65rem 0.9rem',
-                      borderRadius: '0.375rem',
-                      background: 'oklch(14% 0.012 240)',
-                      border: '1px solid oklch(60% 0.25 300 / 0.2)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span
-                        style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: '50%',
-                          background: 'oklch(60% 0.25 300 / 0.2)',
-                          color: '#C084FC',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.65rem',
-                          fontWeight: 700,
-                          fontFamily: 'JetBrains Mono',
-                        }}
-                      >
-                        ⚡
-                      </span>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span className="mono" style={{ fontWeight: 700, color: '#C084FC', fontSize: '0.85rem' }}>
-                            {alpha.symbol}
-                          </span>
-                          <span style={{ fontSize: '0.75rem', color: 'oklch(60% 0.01 240)' }}>
-                            {alpha.name}
-                          </span>
-                        </div>
-                        <div className="mono" style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)' }}>
-                          {alpha.amount.toLocaleString()} @ ${alpha.priceUSDT} USDT · Total: ${totalVal.toFixed(2)}
-                          {alpha.targetPct > 0 && ` · Target: ${alpha.targetPct}%`}
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAlpha(alpha.symbol)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'oklch(50% 0.01 240)',
-                        padding: '0.25rem',
-                      }}
-                      title="Remove token"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Add/Edit Alpha Token Form */}
-        <div style={{
-          padding: '1rem',
-          borderRadius: '0.375rem',
-          background: 'oklch(12% 0.012 240)',
-          border: '1px solid oklch(100% 0 0 / 0.06)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#C084FC' }}>
-              Add / Update Binance Alpha Token
-            </div>
-            {alphaTokenList && alphaTokenList.length > 0 && (
-              <div style={{ fontSize: '0.68rem', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-                Binance Alpha API Live ({alphaTokenList.length} tokens)
-              </div>
-            )}
-          </div>
-
-          {/* Quick Dropdown Select from Binance Alpha API */}
-          {alphaTokenList && alphaTokenList.length > 0 && (
-            <div>
-              <label style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', display: 'block', marginBottom: '0.25rem' }}>
-                Select Token from Binance Alpha List (Auto-populates Live Price)
-              </label>
-              <select
-                className="select select-sm w-full mono"
-                onChange={e => {
-                  const selected = alphaTokenList.find(t => t.symbol === e.target.value)
-                  if (selected) {
-                    setAlphaSymbol(selected.symbol)
-                    setAlphaName(selected.name || selected.symbol)
-                    if (selected.price > 0) setAlphaPrice(String(selected.price))
-                  }
-                }}
-                defaultValue=""
-                style={{ fontSize: '0.8rem' }}
-              >
-                <option value="" disabled>-- Select Alpha Token from Binance API --</option>
-                {alphaTokenList.map(t => (
-                  <option key={t.tokenId || t.alphaId || t.symbol} value={t.symbol}>
-                    {t.symbol} ({t.name}) — ${t.price > 0 ? t.price : 'Auto'} [{t.alphaId || 'ALPHA'}]
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
-            <div>
-              <label style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', display: 'block', marginBottom: '0.25rem' }}>
-                Symbol (e.g. FARTCOIN, KOMA)
-              </label>
-              <input
-                type="text"
-                className="input input-sm w-full mono"
-                placeholder="FARTCOIN"
-                value={alphaSymbol}
-                onChange={e => {
-                  const sym = e.target.value.toUpperCase()
-                  setAlphaSymbol(sym)
-                  const match = alphaTokenList?.find(t => t.symbol === sym)
-                  if (match) {
-                    if (match.name) setAlphaName(match.name)
-                    if (match.price > 0) setAlphaPrice(String(match.price))
-                  }
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', display: 'block', marginBottom: '0.25rem' }}>
-                Token Name
-              </label>
-              <input
-                type="text"
-                className="input input-sm w-full"
-                placeholder="Fartcoin"
-                value={alphaName}
-                onChange={e => setAlphaName(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
-            <div>
-              <label style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', display: 'block', marginBottom: '0.25rem' }}>
-                Amount Held
-              </label>
-              <input
-                type="number"
-                className="input input-sm w-full mono"
-                placeholder="1000"
-                value={alphaAmount}
-                onChange={e => setAlphaAmount(e.target.value)}
-                min="0"
-                step="any"
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', display: 'block', marginBottom: '0.25rem' }}>
-                Price (USDT)
-              </label>
-              <input
-                type="number"
-                className="input input-sm w-full mono"
-                placeholder="Live from API"
-                value={alphaPrice}
-                onChange={e => setAlphaPrice(e.target.value)}
-                min="0"
-                step="any"
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', display: 'block', marginBottom: '0.25rem' }}>
-                Target Weight (%)
-              </label>
-              <input
-                type="number"
-                className="input input-sm w-full mono"
-                placeholder="5"
-                value={alphaTarget}
-                onChange={e => setAlphaTarget(e.target.value)}
-                min="0"
-                max="100"
-                step="0.1"
-              />
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="btn btn-sm mono"
-            style={{
-              background: '#9333ea',
-              color: '#ffffff',
-              border: 'none',
-              marginTop: '0.25rem',
-            }}
-            onClick={handleAddAlpha}
-            disabled={!alphaSymbol.trim()}
-          >
-            + Save Binance Alpha Asset
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

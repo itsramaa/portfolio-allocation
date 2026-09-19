@@ -1,7 +1,7 @@
 // ─── Rebalance Tab ───────────────────────────────────────────────────────────
 import { useState, useMemo } from 'react'
 import type { Asset, TargetAllocation, CurrencyCode } from '../types'
-import { calculateRebalance, fmtUSDT, fmtPct, assetColor, getAlphaSymbols } from '../portfolio'
+import { calculateRebalance, fmtUSDT, fmtPct, assetColor } from '../portfolio'
 import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
 import { CurrencyDisplay } from './CurrencyDisplay'
 
@@ -200,8 +200,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                   {rebalanceResults.map((r, i) => {
                     const asset = assets.find(a => a.symbol === r.symbol)
                     const isFutures = r.symbol === 'FUTURES_USDT' || r.symbol.startsWith('FUTURES_')
-                    const isAlpha = asset?.isAlpha || getAlphaSymbols().has(r.symbol)
-                    const color = asset?.logoColor ?? assetColor(r.symbol, isAlpha, isFutures)
+                    const color = asset?.logoColor ?? assetColor(r.symbol, isFutures)
                     const localValue = convertUSDToCurrency(r.amountUSDT, currency, rates)
 
                     let actionText = r.action.toUpperCase()

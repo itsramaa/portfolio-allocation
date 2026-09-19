@@ -1,9 +1,9 @@
 // ─── Main Application Shell ──────────────────────────────────────────────────
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import type { AppTab, ConnectionStatus, ApiCredentials, Asset, TargetAllocation, CurrencyCode, FxRates, AlphaAssetConfig } from './types'
-import { loadCredentials, loadTargetAllocation, saveTargetAllocation, saveSnapshot, clearCredentials, loadAlphaAssets, saveAlphaAssets, loadArchivedAssets, saveArchivedAssets } from './storage'
-import { fetchAccountBalances, fetchAllPrices, fetchAlphaTokenList, type BinanceAlphaToken } from './binanceApi'
-import { buildAssets, updateAlphaSymbols } from './portfolio'
+import type { AppTab, ConnectionStatus, ApiCredentials, Asset, TargetAllocation, CurrencyCode, FxRates } from './types'
+import { loadCredentials, loadTargetAllocation, saveTargetAllocation, saveSnapshot, clearCredentials, loadArchivedAssets, saveArchivedAssets } from './storage'
+import { fetchAccountBalances, fetchAllPrices } from './binanceApi'
+import { buildAssets } from './portfolio'
 import { loadSelectedCurrency, saveSelectedCurrency, loadCachedRates, fetchLiveFxRates } from './currency'
 
 import { Sidebar } from './components/Sidebar'
@@ -39,7 +39,6 @@ export default function App() {
     const saved = loadTargetAllocation()
     return Object.keys(saved).length > 0 ? saved : DEMO_TARGETS
   })
-  const [alphaAssets, setAlphaAssets] = useState<AlphaAssetConfig[]>(() => loadAlphaAssets())
   const [archivedAssets, setArchivedAssets] = useState<Set<string>>(() => loadArchivedAssets())
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false)
@@ -55,7 +54,7 @@ export default function App() {
   const [isDemoMode, setIsDemoMode] = useState<boolean>(() => !loadCredentials())
 
   const [assets, setAssets] = useState<Asset[]>([])
-  const [alphaTokenList, setAlphaTokenList] = useState<BinanceAlphaToken[]>([])
+  const [prices, setPrices] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(null)
@@ -65,55 +64,22 @@ export default function App() {
     fetchLiveFxRates().then(rates => setFxRates(rates)).catch(() => {})
   }, [])
 
-  // ─── Alpha token list (public API) ─────────────────────────────────────────
-  useEffect(() => {
-    const loadAlpha = async () => {
-      try {
-        console.log('Fetching Alpha token list from Binance API...')
-        const tokens = await fetchAlphaTokenList()
-        setAlphaTokenList(tokens)
-        const symbolSet = new Set<string>()
-        for (const t of tokens) {
-          symbolSet.add(t.symbol)
-          if (t.alphaId) symbolSet.add(t.alphaId.toUpperCase())
-        }
-        updateAlphaSymbols(symbolSet)
-        console.log(`Loaded ${tokens.length} Alpha tokens from Binance API into detector`)
-      } catch (err) {
-        console.warn('Failed to fetch Alpha token list:', err)
-      }
-    }
-    loadAlpha()
-  }, [])
-
   // ─── Fetch live data from Binance API ──────────────────────────────────────
   const loadLiveData = useCallback(async (
     creds: ApiCredentials,
-    currentTargets: TargetAllocation,
-    currentAlpha: AlphaAssetConfig[] = alphaAssets
+    currentTargets: TargetAllocation
   ) => {
     setLoading(true)
     setError(null)
     setConnectionStatus('loading')
     try {
-      const [balances, spotPrices, alphaTokens] = await Promise.all([
+      const [balances, spotPrices] = await Promise.all([
         fetchAccountBalances(creds),
         fetchAllPrices(),
-        fetchAlphaTokenList(),
       ])
 
-      const prices: Record<string, number> = { ...spotPrices }
-      for (const t of alphaTokens) {
-        if (t.price > 0) {
-          prices[`${t.symbol}USDT`] = t.price
-          prices[t.symbol] = t.price
-          if (t.alphaId) {
-            prices[`${t.alphaId}USDT`] = t.price
-          }
-        }
-      }
-
-      const built = buildAssets(balances, prices, currentTargets, currentAlpha)
+      setPrices(spotPrices)
+      const built = buildAssets(balances, spotPrices, currentTargets)
       setAssets(built)
       setConnectionStatus('connected')
       setLastRefreshed(Date.now())
@@ -123,7 +89,7 @@ export default function App() {
         saveSnapshot({
           timestamp: Date.now(),
           totalUSDT: total,
-          btcPrice: prices['BTCUSDT'],
+          btcPrice: spotPrices['BTCUSDT'],
         })
       }
     } catch (err) {
@@ -133,17 +99,16 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [alphaAssets])
+  }, [])
 
   // ─── Load demo data ────────────────────────────────────────────────────────
   const loadDemoData = useCallback(async (
-    currentTargets: TargetAllocation,
-    currentAlpha: AlphaAssetConfig[] = alphaAssets
+    currentTargets: TargetAllocation
   ) => {
     setLoading(true)
     setError(null)
     try {
-      let prices: Record<string, number> = {
+      let demoPrices: Record<string, number> = {
         BTCUSDT: 68500,
         ETHUSDT: 3600,
         SOLUSDT: 175,
@@ -153,13 +118,14 @@ export default function App() {
       try {
         const livePrices = await fetchAllPrices()
         if (livePrices && Object.keys(livePrices).length > 0) {
-          prices = livePrices
+          demoPrices = livePrices
         }
       } catch {
         // fallback static demo prices
       }
 
-      const built = buildAssets(DEMO_BALANCES, prices, currentTargets, currentAlpha)
+      setPrices(demoPrices)
+      const built = buildAssets(DEMO_BALANCES, demoPrices, currentTargets)
       setAssets(built)
       setConnectionStatus('connected')
       setLastRefreshed(Date.now())
@@ -169,7 +135,7 @@ export default function App() {
         saveSnapshot({
           timestamp: Date.now(),
           totalUSDT: total,
-          btcPrice: prices['BTCUSDT'],
+          btcPrice: demoPrices['BTCUSDT'],
         })
       }
     } catch (err) {
@@ -177,30 +143,30 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [alphaAssets])
+  }, [])
 
   // ─── Initial sync ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (credentials) {
       setIsDemoMode(false)
-      loadLiveData(credentials, targets, alphaAssets)
+      loadLiveData(credentials, targets)
     } else if (isDemoMode) {
-      loadDemoData(targets, alphaAssets)
+      loadDemoData(targets)
     }
-  }, [credentials, isDemoMode, loadLiveData, loadDemoData, targets, alphaAssets])
+  }, [credentials, isDemoMode, loadLiveData, loadDemoData, targets])
 
   // ─── Auto refresh every 60s ────────────────────────────────────────────────
   useEffect(() => {
     if (!credentials && !isDemoMode) return
     const interval = setInterval(() => {
       if (credentials) {
-        loadLiveData(credentials, targets, alphaAssets)
+        loadLiveData(credentials, targets)
       } else if (isDemoMode) {
-        loadDemoData(targets, alphaAssets)
+        loadDemoData(targets)
       }
     }, 60_000)
     return () => clearInterval(interval)
-  }, [credentials, isDemoMode, loadLiveData, loadDemoData, targets, alphaAssets])
+  }, [credentials, isDemoMode, loadLiveData, loadDemoData, targets])
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleCredentialsChange = (creds: ApiCredentials | null) => {
@@ -234,15 +200,7 @@ export default function App() {
     })
   }
 
-  const handleAlphaAssetsChange = (newAlpha: AlphaAssetConfig[]) => {
-    setAlphaAssets(newAlpha)
-    saveAlphaAssets(newAlpha)
-    if (credentials) {
-      loadLiveData(credentials, targets, newAlpha)
-    } else {
-      loadDemoData(targets, newAlpha)
-    }
-  }
+
 
   const handleToggleArchive = (symbol: string) => {
     setArchivedAssets(prev => {
@@ -487,16 +445,14 @@ export default function App() {
             credentials={credentials}
             targets={targets}
             assets={assets}
+            prices={prices}
             currency={currency}
             rates={fxRates.rates}
             ratesLastUpdated={fxRates.lastUpdated}
-            alphaAssets={alphaAssets}
-            alphaTokenList={alphaTokenList}
             onCredentialsChange={handleCredentialsChange}
             onTargetsChange={handleTargetsChange}
             onCurrencyChange={handleCurrencyChange}
             onRefreshRates={handleRefreshRates}
-            onAlphaAssetsChange={handleAlphaAssetsChange}
           />
         )}
       </main>

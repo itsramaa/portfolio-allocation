@@ -1,5 +1,5 @@
 // ─── Dashboard Tab ───────────────────────────────────────────────────────────
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine,
@@ -107,22 +107,11 @@ export function Dashboard({
   currency = 'USD',
   rates = {},
 }: DashboardProps) {
-  const [filter, setFilter] = useState<'all' | 'spot' | 'alpha'>('all')
-
   const totalUSDT = useMemo(() => assets.reduce((s, a) => s + a.usdtValue, 0), [assets])
   const largestAsset = useMemo(() => assets[0], [assets])
   const assetsWithTarget = useMemo(() => assets.filter(a => a.targetPct > 0), [assets])
 
-  const alphaAssets = useMemo(() => assets.filter(a => a.isAlpha), [assets])
-  const spotAssets = useMemo(() => assets.filter(a => !a.isAlpha), [assets])
-  const alphaTotalUSDT = useMemo(() => alphaAssets.reduce((s, a) => s + a.usdtValue, 0), [alphaAssets])
-  const alphaPct = totalUSDT > 0 ? (alphaTotalUSDT / totalUSDT) * 100 : 0
-
-  const displayedAssets = useMemo(() => {
-    if (filter === 'spot') return spotAssets
-    if (filter === 'alpha') return alphaAssets
-    return assets
-  }, [assets, spotAssets, alphaAssets, filter])
+  const displayedAssets = assets
 
   const driftData = useMemo(() =>
     assets
@@ -223,7 +212,7 @@ export function Dashboard({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
       {/* ── Stat row ─────────────────────────────────────────────────── */}
-      <div className={alphaAssets.length > 0 ? 'stat-grid-5' : 'stat-grid'}>
+      <div className="stat-grid">
         {/* Total Value */}
         <div className="surface-card fade-up" style={{ padding: '1.25rem 1.5rem', gridColumn: 'span 1' }} title={`= ${totalUsdFormatted} USD`}>
           <div style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
@@ -240,23 +229,6 @@ export function Dashboard({
         </div>
 
         <StatCard label="Active Assets" value={String(assets.length)} />
-
-        {/* Binance Alpha Exposure (if any alpha assets configured/held) */}
-        {alphaAssets.length > 0 && (
-          <div className="surface-card fade-up" style={{ padding: '1.25rem 1.5rem', border: '1px solid oklch(60% 0.25 300 / 0.25)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
-              <span style={{ fontSize: '0.7rem', color: '#C084FC', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
-                ⚡ Binance Alpha
-              </span>
-            </div>
-            <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 800, color: '#C084FC', lineHeight: 1.1 }}>
-              {alphaPct.toFixed(1)}%
-            </div>
-            <div className="mono" style={{ fontSize: '0.75rem', color: 'oklch(60% 0.01 240)', marginTop: '0.4rem' }}>
-              <CurrencyDisplay usdValue={alphaTotalUSDT} currency={currency} rates={rates} />
-            </div>
-          </div>
-        )}
 
         {/* Largest Position */}
         <StatCard
@@ -314,7 +286,7 @@ export function Dashboard({
             {assets.slice(0, 6).map((a, i) => (
               <div key={a.symbol} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.72rem' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: DONUT_COLORS[i] }} />
-                <span style={{ color: a.isAlpha ? '#C084FC' : 'oklch(75% 0.01 240)', fontWeight: a.isAlpha ? 600 : 400 }}>
+                <span style={{ color: 'oklch(75% 0.01 240)' }}>
                   {a.symbol}
                 </span>
                 <span className="mono" style={{ color: 'oklch(50% 0.01 240)' }}>{a.currentPct.toFixed(1)}%</span>
@@ -362,42 +334,6 @@ export function Dashboard({
             <span style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>
               Holdings & Valuations ({currency})
             </span>
-
-            {/* Filter Tabs */}
-            <div style={{ display: 'inline-flex', background: 'oklch(14% 0.012 240)', padding: '0.2rem', borderRadius: '0.375rem', border: '1px solid oklch(100% 0 0 / 0.08)' }}>
-              <button
-                type="button"
-                id="filter-all-assets"
-                className={`btn btn-xs ${filter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: '0.72rem', height: '1.6rem', minHeight: '1.6rem' }}
-                onClick={() => setFilter('all')}
-              >
-                All ({assets.length})
-              </button>
-              <button
-                type="button"
-                id="filter-spot-assets"
-                className={`btn btn-xs ${filter === 'spot' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{ fontSize: '0.72rem', height: '1.6rem', minHeight: '1.6rem' }}
-                onClick={() => setFilter('spot')}
-              >
-                Spot ({spotAssets.length})
-              </button>
-              <button
-                type="button"
-                id="filter-alpha-assets"
-                className={`btn btn-xs ${filter === 'alpha' ? 'btn-primary' : 'btn-ghost'}`}
-                style={{
-                  fontSize: '0.72rem',
-                  height: '1.6rem',
-                  minHeight: '1.6rem',
-                  color: filter === 'alpha' ? undefined : '#C084FC',
-                }}
-                onClick={() => setFilter('alpha')}
-              >
-                ⚡ Alpha ({alphaAssets.length})
-              </button>
-            </div>
           </div>
 
           {!isUSD && (
@@ -428,7 +364,7 @@ export function Dashboard({
               {displayedAssets.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ padding: '2.5rem', textAlign: 'center', color: 'oklch(50% 0.01 240)' }}>
-                    {filter === 'alpha' ? 'No Binance Alpha tokens found. Add them in Settings.' : 'No assets in this category.'}
+                    No assets found in your portfolio.
                   </td>
                 </tr>
               ) : (
@@ -457,22 +393,6 @@ export function Dashboard({
                           <span style={{ fontWeight: 600, color: 'oklch(90% 0.01 240)', fontSize: '0.9rem' }}>
                             {asset.symbol}
                           </span>
-                          {asset.isAlpha && (
-                            <span
-                              className="badge badge-xs mono"
-                              style={{
-                                background: 'oklch(60% 0.25 300 / 0.15)',
-                                color: '#C084FC',
-                                border: '1px solid oklch(60% 0.25 300 / 0.35)',
-                                fontWeight: 700,
-                                fontSize: '0.6rem',
-                                padding: '0.15rem 0.4rem',
-                                letterSpacing: '0.04em',
-                              }}
-                            >
-                              ⚡ ALPHA
-                            </span>
-                          )}
                         </div>
                       </div>
                     </td>

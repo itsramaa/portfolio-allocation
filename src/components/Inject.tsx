@@ -307,22 +307,6 @@ export function Inject({ assets, targets, currency, rates, onNavigateSettings }:
                               <span className="mono" style={{ fontWeight: 700, color: 'oklch(92% 0.01 240)' }}>
                                 {r.symbol}
                               </span>
-                              {asset?.isAlpha && (
-                                <span
-                                  className="badge badge-xs mono"
-                                  style={{
-                                    background: 'oklch(60% 0.25 300 / 0.15)',
-                                    color: '#C084FC',
-                                    border: '1px solid oklch(60% 0.25 300 / 0.35)',
-                                    fontWeight: 700,
-                                    fontSize: '0.58rem',
-                                    padding: '0.1rem 0.35rem',
-                                    letterSpacing: '0.04em',
-                                  }}
-                                >
-                                  ⚡ ALPHA
-                                </span>
-                              )}
                             </div>
                             <div style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)' }}>
                               Target: {targetPct.toFixed(1)}%

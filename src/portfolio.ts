@@ -1,4 +1,4 @@
-import type { Asset, InjectionResult, TargetAllocation, AlphaAssetConfig } from './types'
+import type { Asset, InjectionResult, TargetAllocation } from './types'
 
 // deterministic color per ticker (for chart / icon)
 const ASSET_COLORS: Record<string, string> = {
@@ -10,65 +10,25 @@ const ASSET_COLORS: Record<string, string> = {
   FDUSD: '#00B8D9',
 }
 
-// ── Binance Alpha token symbols (fetched from API, with fallback) ─────────────
-// This set is populated dynamically from the Binance Alpha API.
-// Falls back to hardcoded list if API fails.
-let KNOWN_ALPHA_SYMBOLS = new Set<string>()
-
-// Fallback hardcoded list for when API is unavailable
-const FALLBACK_ALPHA_SYMBOLS = new Set([
-  'GRASS', 'VIRTUAL', 'AIXBT', 'FARTCOIN', 'COOKIE', 'GRIFFAIN',
-  'SWARMS', 'LUCE', 'ONDO', 'ACT', 'GOAT', 'MOODENG', 'PNUT',
-  'NEIRO', 'TURBO', 'HMSTR', 'CATI', 'DOGS', 'MAJOR', 'BLUM',
-  'BSPIN', 'MEMESAI', 'BANANA', 'KOMA', 'SUNDOG', 'SUNCAT',
-  'PONS', 'MONAD', 'STORYPROTOCOL', 'STORY', 'INITIA', 'INIT',
-  'MEGAETH', 'MOVEMENT', 'MOVE', 'BERACHAIN', 'BERA',
-  'HYPERLIQUID', 'HYPE', 'KAITO', 'JUPITER', 'JUP',
-  'DEGEN', 'HIGHER', 'MOCHI', 'TOSHI', 'BRETT',
-])
-
-// Initialize with fallback
-KNOWN_ALPHA_SYMBOLS = new Set(FALLBACK_ALPHA_SYMBOLS)
-
-// Update Alpha symbols from API
-export function updateAlphaSymbols(symbols: Set<string>) {
-  KNOWN_ALPHA_SYMBOLS = symbols.size > 0 ? symbols : new Set(FALLBACK_ALPHA_SYMBOLS)
-}
-
-export function getAlphaSymbols(): Set<string> {
-  return KNOWN_ALPHA_SYMBOLS
-}
-
-export function assetColor(symbol: string, isAlpha = false, isFutures = false): string {
+export function assetColor(symbol: string, isFutures = false): string {
   if (isFutures || symbol.startsWith('FUTURES')) return '#02C076' // Vibrant green for Futures assets
-  if (isAlpha) return '#A855F7' // Vibrant purple for Binance Alpha tokens
   return ASSET_COLORS[symbol] ?? '#848E9C'
 }
 
-// build the asset list from raw balances + prices + target config + Binance Alpha assets
+// build the asset list from raw balances + prices + target config
 export function buildAssets(
   balances: Array<{ asset: string; free: string; locked: string }>,
   prices: Record<string, number>,
-  targets: TargetAllocation,
-  alphaConfigs: AlphaAssetConfig[] = []
+  targets: TargetAllocation
 ): Asset[] {
   const assets: Asset[] = []
-  const alphaMap = new Map<string, AlphaAssetConfig>()
-  for (const cfg of alphaConfigs) {
-    alphaMap.set(cfg.symbol.toUpperCase(), cfg)
-  }
-
-  const processedSymbols = new Set<string>()
 
   for (const b of balances) {
     const sym = b.asset.toUpperCase()
-    processedSymbols.add(sym)
     const amount = parseFloat(b.free) + parseFloat(b.locked)
     if (amount <= 0) continue
 
     const isFutures = sym === 'FUTURES_USDT' || sym.startsWith('FUTURES_')
-    // Auto-detect Alpha: either manually configured OR known from Binance Alpha list
-    const isAlpha = !isFutures && (alphaMap.has(sym) || getAlphaSymbols().has(sym))
 
     // get USDT price
     let price = 1
@@ -89,8 +49,6 @@ export function buildAssets(
       price = prices[`${sym}ETH`] * prices['ETHUSDT']
     } else if (prices[`${sym}BUSD`]) {
       price = prices[`${sym}BUSD`]
-    } else if (isAlpha && alphaMap.get(sym)?.priceUSDT) {
-      price = alphaMap.get(sym)!.priceUSDT
     } else {
       continue // can't price this asset, skip
     }
@@ -98,7 +56,7 @@ export function buildAssets(
     const usdtValue = amount * price
     if (usdtValue < 0.05) continue // skip dust < $0.05 (5 cents)
 
-    const targetPct = targets[sym] ?? (isAlpha ? alphaMap.get(sym)?.targetPct ?? 0 : 0)
+    const targetPct = targets[sym] ?? 0
 
     assets.push({
       symbol: sym,
@@ -109,34 +67,9 @@ export function buildAssets(
       currentPct: 0, // filled below
       targetPct,
       drift: 0,       // filled below
-      logoColor: assetColor(sym, isAlpha, isFutures),
-      isAlpha,
+      logoColor: assetColor(sym, isFutures),
       isFutures,
     })
-  }
-
-  // Also include Binance Alpha tokens configured by user that aren't in spot balances yet
-  for (const [sym, alpha] of alphaMap.entries()) {
-    if (!processedSymbols.has(sym) && alpha.amount > 0) {
-      const livePrice = prices[sym] || prices[`${sym}USDT`] || alpha.priceUSDT || 0
-      if (livePrice > 0) {
-        const usdtValue = alpha.amount * livePrice
-        if (usdtValue >= 0.05) {
-          assets.push({
-            symbol: sym,
-            quoteSymbol: `${sym}USDT`,
-            amount: alpha.amount,
-            usdtValue,
-            price: livePrice,
-            currentPct: 0,
-            targetPct: targets[sym] ?? alpha.targetPct ?? 0,
-            drift: 0,
-            logoColor: '#A855F7',
-            isAlpha: true,
-          })
-        }
-      }
-    }
   }
 
   // sort by value desc

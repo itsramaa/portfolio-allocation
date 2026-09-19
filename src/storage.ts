@@ -5,7 +5,6 @@ const KEYS = {
   creds: 'binance_creds',
   target: 'binance_target_alloc',
   history: 'portfolio_history',
-  alpha: 'binance_alpha_assets',
   archived: 'archived_assets',
 } as const
 
@@ -18,17 +17,6 @@ export function loadArchivedAssets(): Set<string> {
 
 export function saveArchivedAssets(archived: Set<string>): void {
   localStorage.setItem(KEYS.archived, JSON.stringify([...archived]))
-}
-
-export function loadAlphaAssets(): import('./types').AlphaAssetConfig[] {
-  try {
-    const raw = localStorage.getItem(KEYS.alpha)
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
-}
-
-export function saveAlphaAssets(assets: import('./types').AlphaAssetConfig[]): void {
-  localStorage.setItem(KEYS.alpha, JSON.stringify(assets))
 }
 
 export function loadCredentials(): ApiCredentials | null {
