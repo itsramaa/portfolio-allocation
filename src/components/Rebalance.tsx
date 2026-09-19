@@ -1,7 +1,7 @@
 // ─── Rebalance Tab ───────────────────────────────────────────────────────────
 import { useState, useMemo } from 'react'
 import type { Asset, TargetAllocation, CurrencyCode } from '../types'
-import { calculateRebalance, fmtUSDT, fmtPct } from '../portfolio'
+import { calculateRebalance, fmtUSDT, fmtPct, assetColor, getAlphaSymbols } from '../portfolio'
 import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
 import { CurrencyDisplay } from './CurrencyDisplay'
 
@@ -61,7 +61,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
               Auto Rebalance Calculator
             </h2>
             <p style={{ fontSize: '0.82rem', color: 'oklch(55% 0.01 240)', marginTop: '0.25rem', lineHeight: 1.5 }}>
-              Calculates sell and buy orders to bring your portfolio to target allocation. Sells overweight positions, buys underweight positions.
+              Calculates sell and buy orders (or internal wallet transfers) to bring your portfolio to target allocation. Sells overweight positions, buys underweight positions.
             </p>
           </div>
         </div>
@@ -141,25 +141,25 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
             <div className="surface-card fade-up" style={{ padding: '1.5rem', border: '1px solid oklch(239% 0.082 120 / 0.3)' }}>
               <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
-                Total to Sell
+                Total to Sell / Transfer Out
               </div>
               <div className="mono" style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ef4444' }}>
                 {fmtUSDT(sellTotal)}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>
-                {rebalanceResults.filter(r => r.action === 'sell').length} assets to sell
+                {rebalanceResults.filter(r => r.action === 'sell').length} actions to decrease allocation
               </div>
             </div>
 
             <div className="surface-card fade-up" style={{ padding: '1.5rem', border: '1px solid oklch(142% 0.071 120 / 0.3)' }}>
               <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
-                Total to Buy
+                Total to Buy / Transfer In
               </div>
               <div className="mono" style={{ fontSize: '1.4rem', fontWeight: 700, color: '#22c55e' }}>
                 {fmtUSDT(buyTotal)}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>
-                {rebalanceResults.filter(r => r.action === 'buy').length} assets to buy
+                {rebalanceResults.filter(r => r.action === 'buy').length} actions to increase allocation
               </div>
             </div>
           </div>
@@ -174,10 +174,10 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
               alignItems: 'center',
             }}>
               <span style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>
-                Rebalance Orders
+                Rebalance Orders & Transfers
               </span>
               <div style={{ fontSize: '0.75rem', color: 'oklch(45% 0.01 240)', fontStyle: 'italic' }}>
-                Execute spot orders on Binance
+                Execute spot orders or internal transfers on Binance
               </div>
             </div>
 
@@ -186,7 +186,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                 <thead>
                   <tr style={{ borderBottom: '1px solid oklch(100% 0 0 / 0.08)', color: 'oklch(50% 0.01 240)', textAlign: 'right' }}>
                     <th style={{ padding: '0.75rem 1.25rem', textAlign: 'left', fontWeight: 600 }}>Asset</th>
-                    <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Action</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600 }}>Action</th>
                     <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Amount (USDT)</th>
                     {!isUSD && (
                       <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Est. in {currency}</th>
@@ -199,8 +199,29 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                 <tbody>
                   {rebalanceResults.map((r, i) => {
                     const asset = assets.find(a => a.symbol === r.symbol)
-                    const color = asset?.logoColor ?? '#848E9C'
+                    const isFutures = r.symbol === 'FUTURES_USDT' || r.symbol.startsWith('FUTURES_')
+                    const isAlpha = asset?.isAlpha || getAlphaSymbols().has(r.symbol)
+                    const color = asset?.logoColor ?? assetColor(r.symbol, isAlpha, isFutures)
                     const localValue = convertUSDToCurrency(r.amountUSDT, currency, rates)
+
+                    let actionText = r.action.toUpperCase()
+                    let actionBg = r.action === 'sell' ? 'oklch(239% 0.082 120 / 0.15)' : 'oklch(142% 0.071 120 / 0.15)'
+                    let actionColor = r.action === 'sell' ? '#ef4444' : '#22c55e'
+                    let actionBorder = r.action === 'sell' ? '1px solid oklch(239% 0.082 120 / 0.3)' : '1px solid oklch(142% 0.071 120 / 0.3)'
+
+                    if (isFutures) {
+                      if (r.action === 'buy') {
+                        actionText = 'SPOT ➔ FUTURES'
+                        actionBg = 'oklch(160% 0.15 150 / 0.15)'
+                        actionColor = '#02C076'
+                        actionBorder = '1px solid #02C07666'
+                      } else {
+                        actionText = 'FUTURES ➔ SPOT'
+                        actionBg = 'oklch(200% 0.15 60 / 0.15)'
+                        actionColor = '#f59e0b'
+                        actionBorder = '1px solid #f59e0b66'
+                      }
+                    }
 
                     return (
                       <tr
@@ -229,25 +250,25 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                           <span
                             className="badge badge-sm mono"
                             style={{
-                              background: r.action === 'sell' ? 'oklch(239% 0.082 120 / 0.15)' : 'oklch(142% 0.071 120 / 0.15)',
-                              color: r.action === 'sell' ? '#ef4444' : '#22c55e',
-                              border: r.action === 'sell' ? '1px solid oklch(239% 0.082 120 / 0.3)' : '1px solid oklch(142% 0.071 120 / 0.3)',
+                              background: actionBg,
+                              color: actionColor,
+                              border: actionBorder,
                               fontWeight: 700,
                               fontSize: '0.7rem',
                               padding: '0.2rem 0.6rem',
                               letterSpacing: '0.04em',
                             }}
                           >
-                            {r.action.toUpperCase()}
+                            {actionText}
                           </span>
                         </td>
 
-                        <td className="mono" style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, color: r.action === 'sell' ? '#ef4444' : '#22c55e' }}>
+                        <td className="mono" style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, color: actionColor }}>
                           {fmtUSDT(r.amountUSDT)}
                         </td>
 
                         {!isUSD && (
-                          <td className="mono" style={{ padding: '0.85rem 1rem', textAlign: 'right', color: r.action === 'sell' ? '#ef4444' : '#22c55e' }}>
+                          <td className="mono" style={{ padding: '0.85rem 1rem', textAlign: 'right', color: actionColor }}>
                             {formatCurrencyValue(localValue, currency)}
                           </td>
                         )}
@@ -262,7 +283,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
 
                         <td style={{ padding: '0.85rem 1.25rem' }}>
                           <span className="mono" style={{ 
-                            color: r.action === 'sell' ? '#ef4444' : '#22c55e',
+                            color: actionColor,
                             fontWeight: 600,
                             fontSize: '0.8rem',
                           }}>

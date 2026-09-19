@@ -216,46 +216,67 @@ export function calculateInjection(
 }
 
 // full rebalance calculator (sell + buy)
-// algorithm: sell overweight assets, buy underweight assets to reach target allocation
+// algorithm: sell overweight assets & zero-target held assets, buy underweight & unheld target assets to reach target allocation
 export function calculateRebalance(
   assets: Asset[],
   targets: TargetAllocation
 ): Array<{ symbol: string; action: 'sell' | 'buy'; amountUSDT: number; currentPct: number; targetPct: number; newPct: number }> {
-  if (assets.length === 0) return []
+  if (assets.length === 0 && Object.keys(targets).length === 0) return []
 
   const totalUSDT = assets.reduce((s, a) => s + a.usdtValue, 0)
   if (totalUSDT <= 0) return []
 
+  // Gather all unique symbols from both current held assets and configured targets (excluding 'OTHER')
+  const symbolSet = new Set<string>()
+  for (const a of assets) {
+    symbolSet.add(a.symbol)
+  }
+  for (const sym of Object.keys(targets)) {
+    if (sym !== 'OTHER') {
+      symbolSet.add(sym)
+    }
+  }
+
   const results: Array<{ symbol: string; action: 'sell' | 'buy'; amountUSDT: number; currentPct: number; targetPct: number; newPct: number }> = []
 
-  // Calculate target value for each asset
-  for (const asset of assets) {
-    const targetPct = targets[asset.symbol] ?? 0
-    if (targetPct === 0) continue
+  for (const sym of symbolSet) {
+    const asset = assets.find(a => a.symbol === sym)
+    const currentValue = asset ? asset.usdtValue : 0
+    const currentPct = totalUSDT > 0 ? (currentValue / totalUSDT) * 100 : 0
 
-    const currentValue = asset.usdtValue
+    // Determine target percentage:
+    // 1. Explicitly configured target in targets dict
+    // 2. Or fallback targetPct attached to held asset (e.g. from OTHER allocation)
+    // 3. Otherwise 0 (meaning sell 100% of held asset if not targeted)
+    let targetPct = 0
+    if (sym in targets) {
+      targetPct = targets[sym]
+    } else if (asset) {
+      targetPct = asset.targetPct
+    }
+
     const targetValue = (targetPct / 100) * totalUSDT
     const diff = currentValue - targetValue
 
-    if (Math.abs(diff) < 1) continue // Skip if difference is less than $1
+    if (Math.abs(diff) < 1) continue // Skip negligible difference (< $1.00)
 
     if (diff > 0) {
-      // Overweight: sell
+      // Overweight or un-allocated asset -> Sell
       results.push({
-        symbol: asset.symbol,
+        symbol: sym,
         action: 'sell',
         amountUSDT: diff,
-        currentPct: asset.currentPct,
+        currentPct,
         targetPct,
         newPct: targetPct,
       })
     } else {
-      // Underweight: buy
+      // Underweight or new target asset -> Buy
       results.push({
-        symbol: asset.symbol,
+        symbol: sym,
         action: 'buy',
         amountUSDT: Math.abs(diff),
-        currentPct: asset.currentPct,
+        currentPct,
         targetPct,
         newPct: targetPct,
       })
