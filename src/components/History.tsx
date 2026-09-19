@@ -4,9 +4,24 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from 'recharts'
 import type { PortfolioSnapshot, CurrencyCode } from '../types'
-import { loadHistory, saveSnapshot } from '../storage'
+import { loadHistory, saveSnapshot, getWibDailyCycleKey } from '../storage'
 import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
 import { CurrencyDisplay } from './CurrencyDisplay'
+
+export function formatWibDateTime(timestamp: number): string {
+  try {
+    return new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(timestamp)) + ' WIB'
+  } catch {
+    return new Date(timestamp).toLocaleString()
+  }
+}
 
 interface HistoryProps {
   currentTotal: number
@@ -60,9 +75,16 @@ export function History({
 
   const chartData = snapshots.map(s => {
     const converted = convertUSDToCurrency(s.totalUSDT, currency, rates)
+    let timeLabel = ''
+    try {
+      timeLabel = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', month: 'short', day: 'numeric' }).format(new Date(s.timestamp))
+    } catch {
+      timeLabel = new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    }
     return {
-      time: new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      fullDate: new Date(s.timestamp).toLocaleString(),
+      time: timeLabel,
+      cycleDate: getWibDailyCycleKey(s.timestamp),
+      fullDate: formatWibDateTime(s.timestamp),
       convertedVal: converted,
       totalUSDT: s.totalUSDT,
       btcPrice: s.btcPrice,
@@ -79,11 +101,24 @@ export function History({
       {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'oklch(95% 0.01 240)', letterSpacing: '-0.02em' }}>
-            Portfolio Snapshot History ({currency})
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'oklch(95% 0.01 240)', letterSpacing: '-0.02em' }}>
+              Daily Portfolio Snapshot History ({currency})
+            </h2>
+            <span style={{
+              background: 'oklch(40% 0.15 240 / 0.2)',
+              color: '#60a5fa',
+              border: '1px solid oklch(60% 0.2 240 / 0.3)',
+              borderRadius: '0.25rem',
+              fontSize: '0.68rem', fontWeight: 700,
+              padding: '0.15rem 0.5rem',
+              fontFamily: 'JetBrains Mono, monospace',
+            }}>
+              07:00 WIB CYCLE (00:00 UTC)
+            </span>
+          </div>
           <p style={{ fontSize: '0.8rem', color: 'oklch(55% 0.01 240)', marginTop: '0.2rem' }}>
-            Valuation shift timeline across rebalancing sessions. Hover values to see USD equivalence.
+            Riwayat valuasi harian (siklus harian 07:00 WIB / 00:00 UTC Binance). 1 snapshot per hari.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -104,7 +139,7 @@ export function History({
             disabled={currentTotal <= 0}
             style={{ fontSize: '0.75rem' }}
           >
-            Capture Now ({currentTotalFormatted})
+            Capture Today ({currentTotalFormatted})
           </button>
           {snapshots.length > 0 && (
             <button
@@ -125,12 +160,12 @@ export function History({
           <div style={{ fontWeight: 600, color: 'oklch(90% 0.01 240)', marginBottom: '0.4rem' }}>
             No snapshots captured yet
           </div>
-          <p style={{ color: 'oklch(55% 0.01 240)', fontSize: '0.82rem', maxWidth: 420, margin: '0 auto 1.5rem' }}>
-            Snapshots are automatically recorded hourly when you visit the dashboard, or you can record one right now.
+          <p style={{ color: 'oklch(55% 0.01 240)', fontSize: '0.82rem', maxWidth: 460, margin: '0 auto 1.5rem' }}>
+            Snapshot dicatat otomatis 1x per hari (siklus 07:00 WIB / 00:00 UTC) saat Anda membuka dashboard, atau Anda dapat memperbarui snapshot hari ini secara manual.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
             <button type="button" className="btn btn-sm btn-primary" onClick={handleCaptureSnapshot} disabled={currentTotal <= 0}>
-              Capture First Snapshot
+              Capture Today's Snapshot
             </button>
             <button type="button" className="btn btn-sm btn-ghost" style={{ border: '1px solid oklch(100% 0 0 / 0.15)' }} onClick={handleSeedDemo}>
               Preview with Demo Data
@@ -202,14 +237,19 @@ export function History({
 
           {/* Snapshots Table */}
           <div className="surface-card" style={{ padding: '1.25rem 1.5rem' }}>
-            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'oklch(50% 0.01 240)', fontWeight: 600, marginBottom: '1rem' }}>
-              Recorded Records ({snapshots.length})
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'oklch(50% 0.01 240)', fontWeight: 600 }}>
+                Daily Snapshots ({snapshots.length} Hari)
+              </div>
+              <span style={{ fontSize: '0.72rem', color: 'oklch(45% 0.01 240)', fontFamily: 'JetBrains Mono, monospace' }}>
+                Reset harian setiap 07:00 WIB / 00:00 UTC
+              </span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid oklch(100% 0 0 / 0.08)', color: 'oklch(50% 0.01 240)', textAlign: 'left' }}>
-                    <th style={{ padding: '0.6rem 0.75rem', fontWeight: 500 }}>Date & Time</th>
+                    <th style={{ padding: '0.6rem 0.75rem', fontWeight: 500 }}>Tanggal Siklus (07:00 WIB)</th>
                     <th style={{ padding: '0.6rem 0.75rem', fontWeight: 500, textAlign: 'right' }}>Portfolio Value ({currency})</th>
                     <th style={{ padding: '0.6rem 0.75rem', fontWeight: 500, textAlign: 'right' }}>Change</th>
                     <th style={{ padding: '0.6rem 0.75rem', fontWeight: 500, textAlign: 'right' }}>BTC Price ({currency})</th>
@@ -229,7 +269,12 @@ export function History({
                         className="table-row-hover"
                       >
                         <td style={{ padding: '0.75rem', color: 'oklch(75% 0.01 240)' }}>
-                          {new Date(snap.timestamp).toLocaleString()}
+                          <div style={{ fontWeight: 600, color: 'oklch(90% 0.01 240)' }}>
+                            {new Date(snap.timestamp).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', year: 'numeric' })}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'oklch(45% 0.01 240)', fontFamily: 'JetBrains Mono, monospace' }}>
+                            {formatWibDateTime(snap.timestamp)} · Siklus {getWibDailyCycleKey(snap.timestamp)}
+                          </div>
                         </td>
 
                         {/* Converted Portfolio Value with USD tooltip */}

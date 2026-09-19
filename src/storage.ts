@@ -53,21 +53,68 @@ export function saveTargetAllocation(alloc: TargetAllocation): void {
   localStorage.setItem(KEYS.target, JSON.stringify(alloc))
 }
 
+/**
+ * Returns the daily cycle key (YYYY-MM-DD) based on 07:00 WIB (00:00 UTC).
+ * 07:00 WIB marks the daily candle close and opening of the crypto trading day in Indonesia.
+ * 
+ * Timeline:
+ * 07:00 WIB (00:00 UTC) Date D ... 06:59:59 WIB (23:59:59 UTC) Date D
+ */
+export function getWibDailyCycleKey(timestamp: number): string {
+  // 07:00 WIB === 00:00 UTC. The UTC date string directly defines the 07:00 WIB day cycle!
+  return new Date(timestamp).toISOString().slice(0, 10)
+}
+
+/**
+ * Consolidates snapshot records so that each 07:00 WIB day has at most 1 snapshot
+ * (retains the latest valuation recorded during that day's cycle).
+ */
+export function consolidateDailySnapshots(snapshots: PortfolioSnapshot[]): PortfolioSnapshot[] {
+  const map = new Map<string, PortfolioSnapshot>()
+  for (const s of snapshots) {
+    const key = getWibDailyCycleKey(s.timestamp)
+    const existing = map.get(key)
+    if (!existing || s.timestamp >= existing.timestamp) {
+      map.set(key, s)
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp)
+}
+
 export function loadHistory(): PortfolioSnapshot[] {
   try {
     const raw = localStorage.getItem(KEYS.history)
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    // Automatically consolidate any legacy hourly snapshots into 1 snapshot per 07:00 WIB day
+    return consolidateDailySnapshots(parsed)
+  } catch {
+    return []
+  }
 }
 
 export function saveSnapshot(snapshot: PortfolioSnapshot): void {
   const history = loadHistory()
-  // deduplicate — only save if last snapshot is > 1 hour old or first
-  const last = history[history.length - 1]
-  if (!last || snapshot.timestamp - last.timestamp > 60 * 60 * 1000) {
+  const snapDay = getWibDailyCycleKey(snapshot.timestamp)
+
+  const existingIdx = history.findIndex(s => getWibDailyCycleKey(s.timestamp) === snapDay)
+
+  if (existingIdx >= 0) {
+    // Already recorded for today's 07:00 WIB cycle:
+    // Update it with the latest valuation of the day
+    history[existingIdx] = {
+      ...snapshot,
+      timestamp: snapshot.timestamp,
+    }
+  } else {
+    // New day (clock crossed 07:00 WIB): record new daily snapshot
     history.push(snapshot)
-    // keep only last 365 snapshots
-    if (history.length > 365) history.splice(0, history.length - 365)
-    localStorage.setItem(KEYS.history, JSON.stringify(history))
   }
+
+  // Sort chronologically and keep last 365 daily snapshots (1 full year)
+  history.sort((a, b) => a.timestamp - b.timestamp)
+  if (history.length > 365) history.splice(0, history.length - 365)
+
+  localStorage.setItem(KEYS.history, JSON.stringify(history))
 }
