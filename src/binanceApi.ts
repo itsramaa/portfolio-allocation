@@ -242,16 +242,21 @@ export async function fetchAccountBalances(creds: ApiCredentials): Promise<Array
     // Silently ignore if API key lacks earn permissions
   }
 
-  // 5. Query USDT-M Futures Balances (/fapi/v2/balance)
+  // 5. Query USDT-M Futures Account & Balances (/fapi/v2/account & /fapi/v2/balance)
   try {
-    const fapiData = await signedGet('/fapi/v2/balance', {}, creds)
-    if (Array.isArray(fapiData)) {
-      for (const f of fapiData) {
-        const bal = parseFloat(f.balance) || parseFloat(f.crossWalletBalance) || 0
-        if (bal > 0) {
-          const key = f.asset === 'USDT' ? 'FUTURES_USDT' : `FUTURES_${f.asset}`
-          assetMap.set(key, { free: bal, locked: 0 })
-        }
+    let fapiData: any = null
+    try {
+      fapiData = await signedGet('/fapi/v2/account', {}, creds)
+    } catch {
+      fapiData = await signedGet('/fapi/v2/balance', {}, creds)
+    }
+
+    const assetList = Array.isArray(fapiData) ? fapiData : (Array.isArray(fapiData?.assets) ? fapiData.assets : [])
+    for (const f of assetList) {
+      const bal = parseFloat(f.marginBalance) || parseFloat(f.walletBalance) || parseFloat(f.balance) || parseFloat(f.crossWalletBalance) || 0
+      if (bal > 0) {
+        const key = f.asset === 'USDT' ? 'FUTURES_USDT' : `FUTURES_${f.asset}`
+        assetMap.set(key, { free: bal, locked: 0 })
       }
     }
   } catch {
