@@ -148,12 +148,26 @@ export function calculateInjection(
   return results.sort((a, b) => b.buyUSDT - a.buyUSDT)
 }
 
+// Binance minimum order value (notional) — orders below this cannot be executed
+export const MIN_ORDER_USDT = 5
+
+export interface RebalanceItem {
+  symbol: string
+  action: 'sell' | 'buy'
+  amountUSDT: number
+  currentPct: number
+  targetPct: number
+  newPct: number
+  belowMinOrder: boolean // true if amountUSDT < MIN_ORDER_USDT
+}
+
 // full rebalance calculator (sell + buy)
 // algorithm: sell overweight assets & zero-target held assets, buy underweight & unheld target assets to reach target allocation
+// Items below MIN_ORDER_USDT are included but flagged as belowMinOrder = true
 export function calculateRebalance(
   assets: Asset[],
   targets: TargetAllocation
-): Array<{ symbol: string; action: 'sell' | 'buy'; amountUSDT: number; currentPct: number; targetPct: number; newPct: number }> {
+): RebalanceItem[] {
   if (assets.length === 0 && Object.keys(targets).length === 0) return []
 
   const totalUSDT = assets.reduce((s, a) => s + a.usdtValue, 0)
@@ -170,7 +184,7 @@ export function calculateRebalance(
     }
   }
 
-  const results: Array<{ symbol: string; action: 'sell' | 'buy'; amountUSDT: number; currentPct: number; targetPct: number; newPct: number }> = []
+  const results: RebalanceItem[] = []
 
   for (const sym of symbolSet) {
     const asset = assets.find(a => a.symbol === sym)
@@ -191,32 +205,25 @@ export function calculateRebalance(
     const targetValue = (targetPct / 100) * totalUSDT
     const diff = currentValue - targetValue
 
-    if (Math.abs(diff) < 1) continue // Skip negligible difference (< $1.00)
+    if (Math.abs(diff) < 0.50) continue // Skip truly negligible dust (< $0.50)
+
+    const amountUSDT = Math.abs(diff)
+    const belowMinOrder = amountUSDT < MIN_ORDER_USDT
 
     if (diff > 0) {
       // Overweight or un-allocated asset -> Sell
-      results.push({
-        symbol: sym,
-        action: 'sell',
-        amountUSDT: diff,
-        currentPct,
-        targetPct,
-        newPct: targetPct,
-      })
+      results.push({ symbol: sym, action: 'sell', amountUSDT, currentPct, targetPct, newPct: targetPct, belowMinOrder })
     } else {
       // Underweight or new target asset -> Buy
-      results.push({
-        symbol: sym,
-        action: 'buy',
-        amountUSDT: Math.abs(diff),
-        currentPct,
-        targetPct,
-        newPct: targetPct,
-      })
+      results.push({ symbol: sym, action: 'buy', amountUSDT, currentPct, targetPct, newPct: targetPct, belowMinOrder })
     }
   }
 
-  return results.sort((a, b) => b.amountUSDT - a.amountUSDT)
+  // Sort: actionable first (≥ min order), then skipped — within each group sort by amount desc
+  return results.sort((a, b) => {
+    if (a.belowMinOrder !== b.belowMinOrder) return a.belowMinOrder ? 1 : -1
+    return b.amountUSDT - a.amountUSDT
+  })
 }
 
 // format USDT value
