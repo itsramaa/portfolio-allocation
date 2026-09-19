@@ -15,6 +15,11 @@ services:
       NODE_ENV: production
     volumes:
       - ./server/data:/app/data
+    extra_hosts:
+      - "api.binance.com:108.158.2.161"
+      - "www.binance.com:108.158.2.161"
+      - "fapi.binance.com:108.158.2.161"
+      - "dapi.binance.com:108.158.2.161"
     expose:
       - "3001"
 
