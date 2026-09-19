@@ -11,6 +11,7 @@ export interface Asset {
   drift: number         // currentPct - targetPct
   logoColor: string     // deterministic color for icon
   isAlpha?: boolean     // true if asset is a Binance Alpha pre-listing/on-chain token
+  isFutures?: boolean   // true if asset is Binance USDT-M Futures margin/balance
 }
 
 export interface AlphaAssetConfig {

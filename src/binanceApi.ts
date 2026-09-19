@@ -249,11 +249,8 @@ export async function fetchAccountBalances(creds: ApiCredentials): Promise<Array
       for (const f of fapiData) {
         const bal = parseFloat(f.balance) || parseFloat(f.crossWalletBalance) || 0
         if (bal > 0) {
-          const current = assetMap.get(f.asset) || { free: 0, locked: 0 }
-          assetMap.set(f.asset, {
-            free: current.free + bal,
-            locked: current.locked,
-          })
+          const key = f.asset === 'USDT' ? 'FUTURES_USDT' : `FUTURES_${f.asset}`
+          assetMap.set(key, { free: bal, locked: 0 })
         }
       }
     }

@@ -39,7 +39,8 @@ export function getAlphaSymbols(): Set<string> {
   return KNOWN_ALPHA_SYMBOLS
 }
 
-export function assetColor(symbol: string, isAlpha = false): string {
+export function assetColor(symbol: string, isAlpha = false, isFutures = false): string {
+  if (isFutures || symbol.startsWith('FUTURES')) return '#02C076' // Vibrant green for Futures assets
   if (isAlpha) return '#A855F7' // Vibrant purple for Binance Alpha tokens
   return ASSET_COLORS[symbol] ?? '#848E9C'
 }
@@ -65,12 +66,13 @@ export function buildAssets(
     const amount = parseFloat(b.free) + parseFloat(b.locked)
     if (amount <= 0) continue
 
+    const isFutures = sym === 'FUTURES_USDT' || sym.startsWith('FUTURES_')
     // Auto-detect Alpha: either manually configured OR known from Binance Alpha list
-    const isAlpha = alphaMap.has(sym) || getAlphaSymbols().has(sym)
+    const isAlpha = !isFutures && (alphaMap.has(sym) || getAlphaSymbols().has(sym))
 
     // get USDT price
     let price = 1
-    const STABLES = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'TUSD', 'DAI', 'USDS', 'USDP']
+    const STABLES = ['USDT', 'USDC', 'FDUSD', 'BUSD', 'TUSD', 'DAI', 'USDS', 'USDP', 'FUTURES_USDT']
     if (STABLES.includes(sym)) {
       price = 1
     } else if (prices[sym]) {
@@ -100,15 +102,16 @@ export function buildAssets(
 
     assets.push({
       symbol: sym,
-      quoteSymbol: sym === 'USDT' ? 'USDTUSDT' : `${sym}USDT`,
+      quoteSymbol: sym === 'USDT' || sym === 'FUTURES_USDT' ? 'USDTUSDT' : `${sym}USDT`,
       amount,
       usdtValue,
       price,
       currentPct: 0, // filled below
       targetPct,
       drift: 0,       // filled below
-      logoColor: assetColor(sym, isAlpha),
+      logoColor: assetColor(sym, isAlpha, isFutures),
       isAlpha,
+      isFutures,
     })
   }
 

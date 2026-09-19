@@ -491,6 +491,20 @@ export function Settings({
             + Add
           </button>
           <button
+            id="settings-add-futures"
+            type="button"
+            className="btn btn-sm btn-ghost"
+            onClick={() => {
+              if (localTargets['FUTURES_USDT'] === undefined) {
+                setLocalTargets(prev => ({ ...prev, FUTURES_USDT: 0 }))
+              }
+            }}
+            disabled={localTargets.hasOwnProperty('FUTURES_USDT')}
+            style={{ border: '1px solid oklch(100% 0 0 / 0.1)', color: '#02C076' }}
+          >
+            + Futures USDT
+          </button>
+          <button
             id="settings-add-other"
             type="button"
             className="btn btn-sm btn-ghost"
