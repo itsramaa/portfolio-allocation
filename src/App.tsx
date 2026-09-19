@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { AppTab, ConnectionStatus, ApiCredentials, Asset, TargetAllocation, CurrencyCode, FxRates } from './types'
 import { loadCredentials, loadTargetAllocation, saveTargetAllocation, saveSnapshot, clearCredentials, loadArchivedAssets, saveArchivedAssets } from './storage'
 import { fetchAccountBalances, fetchAllPrices } from './binanceApi'
-import { buildAssets } from './portfolio'
+import { buildAssets, calcRebalanceBand } from './portfolio'
 import { loadSelectedCurrency, saveSelectedCurrency, loadCachedRates, fetchLiveFxRates } from './currency'
 
 import { Sidebar } from './components/Sidebar'
@@ -198,6 +198,7 @@ export default function App() {
           ...a,
           targetPct,
           drift: currentPct - targetPct,
+          rebalanceBand: calcRebalanceBand(targetPct, a.symbol),
         }
       })
     })

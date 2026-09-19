@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine,
 } from 'recharts'
 import type { Asset, CurrencyCode } from '../types'
-import { fmtPct, fmtAmount } from '../portfolio'
+import { fmtPct, fmtAmount, REBALANCE_FLOOR_PP } from '../portfolio'
 import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
 import { CurrencyDisplay } from './CurrencyDisplay'
 
@@ -121,7 +121,13 @@ export function Dashboard({
         asset: a.symbol,
         current: a.currentPct,
         target: a.targetPct,
+        band: a.rebalanceBand,
       })),
+    [assets]
+  )
+
+  const triggeredAssets = useMemo(() =>
+    assets.filter(a => a.rebalanceBand > 0 && Math.abs(a.drift) >= a.rebalanceBand),
     [assets]
   )
 
@@ -302,7 +308,7 @@ export function Dashboard({
               Current vs Target Drift
             </span>
             <span style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)' }}>
-              Positive = overweight · Negative = underweight
+              Trigger = max(25%×target, ±{REBALANCE_FLOOR_PP}pp) · Yellow = current · Gray = target
             </span>
           </div>
           <ResponsiveContainer width="100%" height={250}>
@@ -321,6 +327,36 @@ export function Dashboard({
 
       {/* ── Holdings Table ───────────────────────────────────────────── */}
       <div className="surface-card fade-up">
+        {triggeredAssets.length > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.6rem',
+            padding: '0.65rem 1.25rem',
+            background: 'oklch(35% 0.18 30 / 0.15)',
+            borderBottom: '1px solid oklch(65% 0.22 30 / 0.35)',
+            fontSize: '0.78rem',
+          }}>
+            <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.04em', fontFamily: 'JetBrains Mono, monospace' }}>
+              ⚠ REBALANCE ALERT
+            </span>
+            <span style={{ color: 'oklch(75% 0.05 30)' }}>
+              {triggeredAssets.length} asset{triggeredAssets.length > 1 ? 's have' : ' has'} exceeded its rebalance band:
+            </span>
+            {triggeredAssets.map(a => (
+              <span key={a.symbol} style={{
+                background: 'oklch(50% 0.22 30 / 0.2)',
+                color: '#f87171',
+                border: '1px solid oklch(60% 0.22 30 / 0.4)',
+                borderRadius: '0.25rem',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                padding: '0.1rem 0.4rem',
+                fontFamily: 'JetBrains Mono, monospace',
+              }}>
+                {a.symbol} ({a.drift > 0 ? '+' : ''}{a.drift.toFixed(1)}pp)
+              </span>
+            ))}
+          </div>
+        )}
         <div style={{
           padding: '1rem 1.5rem',
           borderBottom: '1px solid oklch(100% 0 0 / 0.07)',
@@ -430,10 +466,33 @@ export function Dashboard({
 
                   <td className="mono" style={{ padding: '0.85rem 1.5rem', textAlign: 'right' }}>
                     {asset.targetPct > 0 ? (
-                      <span style={{ color: asset.drift > 1 ? '#F0B90B' : asset.drift < -1 ? '#ef4444' : 'oklch(60% 0.01 240)', fontWeight: 600 }}>
-                        {asset.drift > 0 ? '▲ +' : asset.drift < 0 ? '▼ ' : '● '}
-                        {asset.drift.toFixed(2)}%
-                      </span>
+                      <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+                        {/* Drift value + rebalance badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          {asset.rebalanceBand > 0 && Math.abs(asset.drift) >= asset.rebalanceBand && (
+                            <span style={{
+                              background: 'oklch(40% 0.22 30 / 0.2)',
+                              color: '#f87171',
+                              border: '1px solid oklch(60% 0.22 30 / 0.4)',
+                              borderRadius: '0.2rem',
+                              fontSize: '0.6rem', fontWeight: 700,
+                              padding: '0.1rem 0.35rem',
+                              letterSpacing: '0.04em',
+                              fontFamily: 'JetBrains Mono, monospace',
+                            }}>REBALANCE</span>
+                          )}
+                          <span style={{ color: asset.drift > 1 ? '#F0B90B' : asset.drift < -1 ? '#ef4444' : 'oklch(60% 0.01 240)', fontWeight: 600 }}>
+                            {asset.drift > 0 ? '▲ +' : asset.drift < 0 ? '▼ ' : '● '}
+                            {asset.drift.toFixed(2)}%
+                          </span>
+                        </div>
+                        {/* Band hint */}
+                        {asset.rebalanceBand > 0 && (
+                          <span style={{ fontSize: '0.65rem', color: 'oklch(40% 0.01 240)', fontFamily: 'JetBrains Mono, monospace' }}>
+                            band ±{asset.rebalanceBand.toFixed(1)}pp
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span style={{ color: 'oklch(40% 0.01 240)' }}>—</span>
                     )}

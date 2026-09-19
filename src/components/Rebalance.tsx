@@ -1,7 +1,7 @@
 // ─── Rebalance Tab ───────────────────────────────────────────────────────────
 import { useState, useMemo } from 'react'
 import type { Asset, TargetAllocation, CurrencyCode } from '../types'
-import { calculateRebalance, fmtUSDT, fmtPct, assetColor, MIN_ORDER_USDT, type RebalanceItem } from '../portfolio'
+import { calculateRebalance, fmtUSDT, fmtPct, assetColor, MIN_ORDER_USDT, REBALANCE_RELATIVE, REBALANCE_FLOOR_PP, type RebalanceItem } from '../portfolio'
 import { convertUSDToCurrency, formatCurrencyValue } from '../currency'
 import { CurrencyDisplay } from './CurrencyDisplay'
 
@@ -104,19 +104,30 @@ function RebalanceRow({
             color: '#f59e0b',
             border: '1px solid oklch(70% 0.18 85 / 0.3)',
             borderRadius: '0.25rem',
-            fontSize: '0.65rem',
-            fontWeight: 700,
-            padding: '0.15rem 0.45rem',
-            letterSpacing: '0.04em',
+            fontSize: '0.65rem', fontWeight: 700,
+            padding: '0.15rem 0.45rem', letterSpacing: '0.04em',
             fontFamily: 'JetBrains Mono, monospace',
           }}>
             BELOW MIN
           </span>
         ) : (
-          <span className="mono" style={{ color: actionColor, fontWeight: 600, fontSize: '0.8rem' }}>
-            {r.action === 'sell' ? '▼ ' : '▲ '}
-            {fmtPct(r.newPct - r.currentPct)}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            {r.isTriggered && (
+              <span style={{
+                background: 'oklch(40% 0.22 30 / 0.2)',
+                color: '#f87171',
+                border: '1px solid oklch(60% 0.22 30 / 0.4)',
+                borderRadius: '0.2rem',
+                fontSize: '0.6rem', fontWeight: 700,
+                padding: '0.1rem 0.35rem', letterSpacing: '0.04em',
+                fontFamily: 'JetBrains Mono, monospace',
+              }}>TRIGGERED</span>
+            )}
+            <span className="mono" style={{ color: actionColor, fontWeight: 600, fontSize: '0.8rem' }}>
+              {r.action === 'sell' ? '▼ ' : '▲ '}
+              {fmtPct(r.newPct - r.currentPct)}
+            </span>
+          </div>
         )}
       </td>
     </tr>
@@ -139,6 +150,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
 
   const actionable = useMemo(() => allResults.filter(r => !r.belowMinOrder), [allResults])
   const skipped    = useMemo(() => allResults.filter(r =>  r.belowMinOrder), [allResults])
+  const triggered  = useMemo(() => actionable.filter(r => r.isTriggered),    [actionable])
 
   const sellTotal = useMemo(() => actionable.filter(r => r.action === 'sell').reduce((s, r) => s + r.amountUSDT, 0), [actionable])
   const buyTotal  = useMemo(() => actionable.filter(r => r.action === 'buy' ).reduce((s, r) => s + r.amountUSDT, 0), [actionable])
@@ -168,7 +180,9 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
               Auto Rebalance Calculator
             </h2>
             <p style={{ fontSize: '0.82rem', color: 'oklch(55% 0.01 240)', marginTop: '0.25rem', lineHeight: 1.5 }}>
-              Calculates sell and buy orders to bring your portfolio to target allocation. Sells overweight positions, buys underweight positions.
+              Calculates sell and buy orders to reach target allocation.
+              Trigger band: <span style={{ color: 'oklch(75% 0.01 240)', fontFamily: 'JetBrains Mono, monospace' }}>max({(REBALANCE_RELATIVE * 100).toFixed(0)}% × target, ±{REBALANCE_FLOOR_PP}pp)</span>
+              &ensp;·&ensp; USDT/Futures buckets are excluded from auto-trigger.
             </p>
           </div>
         </div>
@@ -292,6 +306,37 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
           {/* Rebalance Table — actionable orders */}
           {actionable.length > 0 && (
             <div className="surface-card fade-up" style={{ overflow: 'hidden' }}>
+              {/* Triggered alert banner */}
+              {triggered.length > 0 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
+                  padding: '0.65rem 1.25rem',
+                  background: 'oklch(35% 0.18 30 / 0.15)',
+                  borderBottom: '1px solid oklch(65% 0.22 30 / 0.35)',
+                  fontSize: '0.78rem',
+                }}>
+                  <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.04em', fontFamily: 'JetBrains Mono, monospace' }}>
+                    ⚠ THRESHOLD EXCEEDED
+                  </span>
+                  <span style={{ color: 'oklch(75% 0.05 30)' }}>
+                    {triggered.length} asset{triggered.length > 1 ? 's have' : ' has'} breached its rebalance band:
+                  </span>
+                  {triggered.map(r => (
+                    <span key={r.symbol} style={{
+                      background: 'oklch(50% 0.22 30 / 0.2)',
+                      color: '#f87171',
+                      border: '1px solid oklch(60% 0.22 30 / 0.4)',
+                      borderRadius: '0.25rem',
+                      fontSize: '0.7rem', fontWeight: 700,
+                      padding: '0.1rem 0.4rem',
+                      fontFamily: 'JetBrains Mono, monospace',
+                    }}>
+                      {r.symbol} {r.action === 'sell' ? '▼' : '▲'} {fmtUSDT(r.amountUSDT)}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <div style={{
                 padding: '1.25rem 1.5rem', borderBottom: '1px solid oklch(100% 0 0 / 0.07)',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',

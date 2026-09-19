@@ -15,6 +15,18 @@ export function assetColor(symbol: string, isFutures = false): string {
   return ASSET_COLORS[symbol] ?? '#848E9C'
 }
 
+// ─── Rebalance Band ─────────────────────────────────────────────────────────
+// Trigger = max(REBALANCE_RELATIVE × targetPct, REBALANCE_FLOOR_PP)
+// USDT and Futures wallets are liquidity buckets — no auto-trigger (band = 0)
+export const REBALANCE_RELATIVE  = 0.25   // 25% of target
+export const REBALANCE_FLOOR_PP  = 3      // minimum 3 percentage points
+const REBALANCE_SKIP = new Set(['USDT', 'FUTURES_USDT', 'USDC', 'FDUSD', 'BUSD'])
+
+export function calcRebalanceBand(targetPct: number, symbol: string): number {
+  if (REBALANCE_SKIP.has(symbol) || targetPct === 0) return 0
+  return Math.max(REBALANCE_RELATIVE * targetPct, REBALANCE_FLOOR_PP)
+}
+
 // build the asset list from raw balances + prices + target config
 export function buildAssets(
   balances: Array<{ asset: string; free: string; locked: string }>,
@@ -64,9 +76,10 @@ export function buildAssets(
       amount,
       usdtValue,
       price,
-      currentPct: 0, // filled below
+      currentPct: 0,      // filled below
       targetPct,
-      drift: 0,       // filled below
+      drift: 0,           // filled below
+      rebalanceBand: 0,   // filled below
       logoColor: assetColor(sym, isFutures),
       isFutures,
     })
@@ -87,6 +100,7 @@ export function buildAssets(
     }
     
     a.drift = a.currentPct - a.targetPct
+    a.rebalanceBand = calcRebalanceBand(a.targetPct, a.symbol)
   }
 
   return assets
@@ -159,6 +173,7 @@ export interface RebalanceItem {
   targetPct: number
   newPct: number
   belowMinOrder: boolean // true if amountUSDT < MIN_ORDER_USDT
+  isTriggered: boolean   // true if |drift| >= rebalanceBand for this asset
 }
 
 // full rebalance calculator (sell + buy)
@@ -209,19 +224,24 @@ export function calculateRebalance(
 
     const amountUSDT = Math.abs(diff)
     const belowMinOrder = amountUSDT < MIN_ORDER_USDT
+    const driftPp = Math.abs(currentPct - targetPct)
+    const band = calcRebalanceBand(targetPct, sym)
+    const isTriggered = band > 0 && driftPp >= band
 
     if (diff > 0) {
       // Overweight or un-allocated asset -> Sell
-      results.push({ symbol: sym, action: 'sell', amountUSDT, currentPct, targetPct, newPct: targetPct, belowMinOrder })
+      results.push({ symbol: sym, action: 'sell', amountUSDT, currentPct, targetPct, newPct: targetPct, belowMinOrder, isTriggered })
     } else {
       // Underweight or new target asset -> Buy
-      results.push({ symbol: sym, action: 'buy', amountUSDT, currentPct, targetPct, newPct: targetPct, belowMinOrder })
+      results.push({ symbol: sym, action: 'buy', amountUSDT, currentPct, targetPct, newPct: targetPct, belowMinOrder, isTriggered })
     }
   }
 
-  // Sort: actionable first (≥ min order), then skipped — within each group sort by amount desc
+  // Sort: triggered first → actionable → skipped. Within each tier, sort amount desc
   return results.sort((a, b) => {
-    if (a.belowMinOrder !== b.belowMinOrder) return a.belowMinOrder ? 1 : -1
+    const tierA = a.belowMinOrder ? 2 : a.isTriggered ? 0 : 1
+    const tierB = b.belowMinOrder ? 2 : b.isTriggered ? 0 : 1
+    if (tierA !== tierB) return tierA - tierB
     return b.amountUSDT - a.amountUSDT
   })
 }

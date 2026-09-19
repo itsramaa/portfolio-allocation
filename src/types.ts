@@ -9,6 +9,7 @@ export interface Asset {
   currentPct: number    // current % of total portfolio
   targetPct: number     // user-configured target %
   drift: number         // currentPct - targetPct
+  rebalanceBand: number // threshold in pp: max(25% × target, 3). 0 = no trigger (USDT/liquidity)
   logoColor: string     // deterministic color for icon
   isFutures?: boolean   // true if asset is Binance USDT-M Futures margin/balance
 }
