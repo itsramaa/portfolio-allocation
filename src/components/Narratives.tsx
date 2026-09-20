@@ -44,7 +44,10 @@ function OverviewCard({
   )
 }
 
-function ScoreBar({ score, color = '#3b82f6' }: { score: number; color?: string }) {
+function ScoreBar({ score, available = true, color = '#3b82f6' }: { score: number; available?: boolean; color?: string }) {
+  if (!available) {
+    return <span style={{ fontSize: '0.68rem', color: 'oklch(55% 0.01 240)' }}>Unavailable</span>
+  }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%' }}>
       <div style={{
@@ -59,7 +62,7 @@ function ScoreBar({ score, color = '#3b82f6' }: { score: number; color?: string 
           height: '100%',
           background: color,
           borderRadius: 999,
-          transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'opacity 0.2s ease',
         }} />
       </div>
       <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'oklch(85% 0.01 240)', minWidth: 24, textAlign: 'right' }}>
@@ -208,7 +211,7 @@ function NarrativeDetailPanel({
       </div>
 
       {/* Score + changes */}
-      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+      <div className="narrative-score-row" style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
         <div style={{
           background: 'oklch(16% 0.015 240)',
           border: '1px solid oklch(100% 0 0 / 0.07)',
@@ -251,12 +254,12 @@ function NarrativeDetailPanel({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
           {SIGNAL_KEYS.map(key => (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div key={key} className="signal-breakdown-row" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <span style={{ fontSize: '0.72rem', color: 'oklch(60% 0.01 240)', minWidth: 130 }}>
                 {SIGNAL_LABELS[key]}
               </span>
               <div style={{ flex: 1 }}>
-                <ScoreBar score={narrative.signals[key]} color={meta.color} />
+                <ScoreBar score={narrative.signals[key]} available={narrative.signalAvailability?.[key] !== false} color={meta.color} />
               </div>
             </div>
           ))}
@@ -438,7 +441,7 @@ export function Narratives({ assets }: NarrativesProps) {
       </div>
 
       {/* ── Filters ──────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="narrative-filters" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
           {lifecycleOptions.map(opt => (
             <button
@@ -462,7 +465,7 @@ export function Narratives({ assets }: NarrativesProps) {
           ))}
         </div>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div className="narrative-sort" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <span style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)' }}>Sort:</span>
           <select
             value={sortKey}
@@ -497,16 +500,16 @@ export function Narratives({ assets }: NarrativesProps) {
           </span>
         </div>
 
-        <div style={{
+        <div className="narrative-table-card desktop-only" style={{
           background: 'oklch(13% 0.012 240)',
           border: '1px solid oklch(100% 0 0 / 0.07)',
           borderRadius: '0.875rem',
           overflow: 'hidden',
         }}>
           {/* Table header */}
-          <div style={{
+          <div className="narrative-table-header" style={{
             display: 'grid',
-            gridTemplateColumns: '2fr 100px 70px 70px 1fr',
+            gridTemplateColumns: 'minmax(180px, 2fr) 100px 70px 70px minmax(140px, 1fr)',
             gap: '0.5rem',
             padding: '0.65rem 1.25rem',
             borderBottom: '1px solid oklch(100% 0 0 / 0.06)',
@@ -534,7 +537,7 @@ export function Narratives({ assets }: NarrativesProps) {
                 style={{
                   width: '100%',
                   display: 'grid',
-                  gridTemplateColumns: '2fr 100px 70px 70px 1fr',
+                  gridTemplateColumns: 'minmax(180px, 2fr) 100px 70px 70px minmax(140px, 1fr)',
                   gap: '0.5rem',
                   padding: '0.9rem 1.25rem',
                   background: isSelected ? 'oklch(100% 0 0 / 0.04)' : 'transparent',
@@ -546,7 +549,7 @@ export function Narratives({ assets }: NarrativesProps) {
                   transition: 'background 0.15s',
                   color: 'inherit',
                 }}
-                className="hover-row"
+                className="hover-row narrative-table-row"
               >
                 {/* Name + lifecycle */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
@@ -575,6 +578,25 @@ export function Narratives({ assets }: NarrativesProps) {
                 </div>
 
                 {/* Score bar */}
+                <ScoreBar score={n.score} color={meta.color} />
+              </button>
+            )
+          })}
+        </div>
+        <div className="mobile-card-list mobile-only">
+          {filteredNarratives.map(n => {
+            const meta = LIFECYCLE_META[n.lifecycle]
+            return (
+              <button type="button" className="mobile-data-card" key={`mobile-${n.id}`} onClick={() => setSelectedNarrative(selectedNarrative?.id === n.id ? null : n)} style={{ color: 'inherit', textAlign: 'left' }}>
+                <div className="mobile-data-card-header">
+                  <strong>{n.emoji} {n.name}</strong>
+                  <span className="mono" style={{ color: meta.color }}>{n.score}</span>
+                </div>
+                <div className="mobile-data-card-meta">
+                  <LifecycleBadge lifecycle={n.lifecycle} />
+                  <ChangeChip value={n.score7dChange} />
+                  <span>24H <span className="mono">{n.score24hChange.toFixed(1)}%</span></span>
+                </div>
                 <ScoreBar score={n.score} color={meta.color} />
               </button>
             )
@@ -699,7 +721,7 @@ export function Narratives({ assets }: NarrativesProps) {
               ]
               return (
                 <div key={e.narrativeId}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <div className="exposure-row-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', gap: '0.75rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span style={{ fontSize: '0.9rem' }}>{e.emoji}</span>
                       <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>{e.name}</span>
@@ -722,7 +744,7 @@ export function Narratives({ assets }: NarrativesProps) {
                       width: `${Math.min(100, e.exposurePct)}%`,
                       background: meta?.color ?? '#3b82f6',
                       borderRadius: 999,
-                      transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                      transition: 'opacity 0.2s ease',
                     }} />
                   </div>
                 </div>

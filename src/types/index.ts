@@ -50,7 +50,7 @@ export type AppTab = 'dashboard' | 'inject' | 'rebalance' | 'settings' | 'histor
 
 // ─── Narrative types ─────────────────────────────────────────────────────────
 
-export type NarrativeLifecycle = 'emerging' | 'growing' | 'mainstream' | 'crowded' | 'cooling'
+export type NarrativeLifecycle = 'emerging' | 'growing' | 'mainstream' | 'crowded' | 'cooling' | 'insufficient-data'
 
 export interface NarrativeSignals {
   social: number        // 0–100: social mentions & engagement velocity
@@ -78,6 +78,9 @@ export interface Narrative {
   score24hChange: number    // pp change vs 24h ago
   score7dChange: number     // pp change vs 7d ago
   signals: NarrativeSignals
+  signalAvailability?: Partial<Record<keyof NarrativeSignals, boolean>>
+  signalConfidence?: Partial<Record<keyof NarrativeSignals, number>>
+  signalSources?: Partial<Record<keyof NarrativeSignals, string[]>>
   signalChanges: NarrativeSignalChanges
   assets: string[]          // token symbols belonging to this narrative
   drivers: string[]         // human-readable explanation sentences (3–5)

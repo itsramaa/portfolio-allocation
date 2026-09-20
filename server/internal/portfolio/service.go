@@ -39,6 +39,7 @@ type RebalanceOrder struct {
 
 type RebalanceResult struct {
 	TotalPortfolioUSDT float64          `json:"totalPortfolioUSDT"`
+	RebalanceBaseUSDT  float64          `json:"rebalanceBaseUSDT"`
 	TotalBuyUSDT       float64          `json:"totalBuyUSDT"`
 	TotalSellUSDT      float64          `json:"totalSellUSDT"`
 	NetTurnoverUSDT    float64          `json:"netTurnoverUSDT"`
@@ -333,6 +334,8 @@ func CalculateCashInjection(
 }
 
 // CalculateRebalance determines recommended trade orders to bring portfolio to target allocations.
+// The account total includes Futures for reporting, while spot allocation targets are
+// normalized against the spot-only base so a Futures loss cannot force spot trades.
 func CalculateRebalance(
 	assets []Asset,
 	minTradeUSDT float64,
@@ -346,30 +349,56 @@ func CalculateRebalance(
 		thresholdPct = cfg.RebalanceThresholdPct
 	}
 
-	var totalPortfolio float64
-	var maxDrift float64
+	var totalPortfolio, spotBase, spotTargetSum float64
 	for _, a := range assets {
 		totalPortfolio += a.Value
+		if !tradingBucketSymbols[a.Symbol] {
+			spotBase += a.Value
+			if a.TargetPct > 0 {
+				spotTargetSum += a.TargetPct
+			}
+		}
 	}
 
 	var orders = make([]RebalanceOrder, 0)
-	var totalBuy, totalSell float64
+	var totalBuy, totalSell, maxDrift float64
 
 	for _, a := range assets {
+		// Futures keeps its account-level target. Spot assets use normalized
+		// targets so the non-Futures allocation still sums to 100% of spot.
+		effectiveTargetPct := a.TargetPct
+		calculationBase := totalPortfolio
+		if !tradingBucketSymbols[a.Symbol] {
+			calculationBase = spotBase
+			if spotTargetSum > 0 && a.TargetPct > 0 {
+				effectiveTargetPct = a.TargetPct / spotTargetSum * 100
+			}
+		}
+
 		currentPct := a.CurrentPct
-		if totalPortfolio > 0 {
-			currentPct = a.Value / totalPortfolio * 100
+		if calculationBase > 0 {
+			currentPct = a.Value / calculationBase * 100
 		}
-		targetValue := totalPortfolio * a.TargetPct / 100
+		targetValue := calculationBase * effectiveTargetPct / 100
 		diff := targetValue - a.Value
-		diffPct := a.TargetPct - currentPct
-		drift := currentPct - a.TargetPct
-		if math.Abs(drift) > maxDrift {
-			maxDrift = math.Abs(drift)
+		if tradingBucketSymbols[a.Symbol] {
+			// A Futures shortfall is injection-only. Never recommend moving
+			// spot capital into a losing or underfunded Futures account.
+			if diff >= 0 {
+				continue
+			}
+			targetValue = totalPortfolio * a.TargetPct / 100
+			diff = targetValue - a.Value
 		}
+
+		diffPct := effectiveTargetPct - currentPct
+		drift := currentPct - effectiveTargetPct
 		absDiff := math.Abs(diff)
 		if absDiff < 0.01 || (reserveSymbols[a.Symbol] && diff < 0) {
 			continue
+		}
+		if math.Abs(drift) > maxDrift && !tradingBucketSymbols[a.Symbol] {
+			maxDrift = math.Abs(drift)
 		}
 
 		action := "BUY"
@@ -380,13 +409,13 @@ func CalculateRebalance(
 			totalBuy += absDiff
 		}
 
-		band := rebalanceBand(a.TargetPct, a.Symbol)
-		if thresholdPct > band && !reserveSymbols[a.Symbol] && !tradingBucketSymbols[a.Symbol] && a.TargetPct > 0 {
+		band := rebalanceBand(effectiveTargetPct, a.Symbol)
+		if thresholdPct > band && !reserveSymbols[a.Symbol] && !tradingBucketSymbols[a.Symbol] && effectiveTargetPct > 0 {
 			band = thresholdPct
 		}
 		belowMin := absDiff < minTradeUSDT
-		minEconomic := totalPortfolio * 0.005
-		gateBand := (a.TargetPct == 0 && absDiff > 0) || math.Abs(drift) >= band
+		minEconomic := calculationBase * 0.005
+		gateBand := (effectiveTargetPct == 0 && absDiff > 0) || math.Abs(drift) >= band
 		isTriggered := gateBand && absDiff >= minEconomic && !belowMin && !reserveSymbols[a.Symbol] && !tradingBucketSymbols[a.Symbol]
 
 		var qty float64
@@ -395,12 +424,11 @@ func CalculateRebalance(
 		}
 		orders = append(orders, RebalanceOrder{
 			Symbol: a.Symbol, Action: action, AmountUSDT: absDiff, EstimatedQty: qty,
-			CurrentPct: currentPct, TargetPct: a.TargetPct, DiffPct: diffPct, DriftPct: drift,
+			CurrentPct: currentPct, TargetPct: effectiveTargetPct, DiffPct: diffPct, DriftPct: drift,
 			Price: a.Price, BelowMinOrder: belowMin, IsTriggered: isTriggered,
 		})
 	}
 
-	// Sort orders: largest value trades first
 	sort.Slice(orders, func(i, j int) bool {
 		if orders[i].AmountUSDT != orders[j].AmountUSDT {
 			return orders[i].AmountUSDT > orders[j].AmountUSDT
@@ -414,6 +442,7 @@ func CalculateRebalance(
 
 	return RebalanceResult{
 		TotalPortfolioUSDT: totalPortfolio,
+		RebalanceBaseUSDT:  spotBase,
 		TotalBuyUSDT:       totalBuy,
 		TotalSellUSDT:      totalSell,
 		NetTurnoverUSDT:    turnover,

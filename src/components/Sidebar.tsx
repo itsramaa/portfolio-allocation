@@ -75,7 +75,7 @@ export function Sidebar({ activeTab, onTabChange, connectionStatus, collapsed, o
         top: 0,
         left: 0,
         zIndex: 50,
-        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         overflowX: 'hidden',
       }}
     >

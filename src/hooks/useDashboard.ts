@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Asset } from "../types";
-import { calcTotalUSDT, evaluateRebalanceGates } from "../lib/portfolio";
+import { calcTotalUSDT, evaluateRebalanceGates, isFuturesAsset } from "../lib/portfolio";
 
 export function useDashboard(assets: Asset[]) {
   const totalUSDT = useMemo(() => calcTotalUSDT(assets), [assets]);
@@ -59,23 +59,27 @@ export function useDashboard(assets: Asset[]) {
       });
     return visible;
   }, [activeAssets]);
+  const spotTotalUSDT = useMemo(() => activeAssets.filter((asset) => !isFuturesAsset(asset.symbol)).reduce((sum, asset) => sum + asset.usdtValue, 0), [activeAssets]);
+  const spotTargetSum = useMemo(() => activeAssets.filter((asset) => !isFuturesAsset(asset.symbol)).reduce((sum, asset) => sum + Math.max(0, asset.targetPct), 0), [activeAssets]);
   const triggeredAssets = useMemo(
     () =>
       activeAssets.filter((a) => {
-        if (a.rebalanceBand <= 0 || a.usdtValue <= 0) return false;
+        if (isFuturesAsset(a.symbol) || a.rebalanceBand <= 0 || a.usdtValue <= 0 || spotTargetSum <= 0) return false;
+        const effectiveTargetPct = a.targetPct > 0 ? (a.targetPct / spotTargetSum) * 100 : 0;
+        const currentPct = spotTotalUSDT > 0 ? (a.usdtValue / spotTotalUSDT) * 100 : 0;
         const driftValue = Math.abs(
-          a.usdtValue - (a.targetPct / 100) * totalUSDT,
+          a.usdtValue - (effectiveTargetPct / 100) * spotTotalUSDT,
         );
         return evaluateRebalanceGates(
-          Math.abs(a.drift),
+          Math.abs(currentPct - effectiveTargetPct),
           a.rebalanceBand,
           driftValue,
           driftValue,
-          totalUSDT,
+          spotTotalUSDT,
           "core",
         ).isTriggered;
       }),
-    [activeAssets, totalUSDT],
+    [activeAssets, spotTargetSum, spotTotalUSDT],
   );
   return {
     totalUSDT,

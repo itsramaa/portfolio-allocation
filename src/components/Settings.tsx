@@ -55,7 +55,7 @@ export function Settings({
   } = useSettings({ credentials, targets, assets, prices, currency, rates, onCredentialsChange, onTargetsChange, onRefreshRates })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', maxWidth: 640 }} className="fade-up">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', maxWidth: 640 }} className="fade-up settings-page">
 
       {/* ── Currency & Valuation Preferences ──────────────────────────── */}
       <div className="surface-card" style={{ padding: '1.75rem' }}>
@@ -277,9 +277,9 @@ export function Settings({
         </div>
 
         {/* Target inputs list */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+        <div className="settings-target-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
           {Object.entries(localTargets).map(([sym, val]) => (
-            <div key={sym} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 32px', gap: '0.75rem', alignItems: 'center' }}>
+            <div className="settings-target-row" key={sym} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 32px', gap: '0.75rem', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span
                   style={{
@@ -340,7 +340,7 @@ export function Settings({
               height: '100%',
               width: `${Math.min(100, targetSum)}%`,
               background: targetValid ? '#22c55e' : targetSum > 100 ? '#ef4444' : '#F0B90B',
-              transition: 'width 0.2s, background 0.2s',
+              transition: 'opacity 0.2s, background 0.2s',
             }} />
           </div>
           <span className="mono" style={{ fontSize: '0.82rem', color: targetValid ? '#22c55e' : '#ef4444', minWidth: '3.5rem', textAlign: 'right', fontWeight: 600 }}>
@@ -524,8 +524,8 @@ export function Settings({
           Save Target Allocation
         </button>
 
-        <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'oklch(45% 0.01 240)' }}>
-          Target allocations should sum to 100%. Select coins from the searchable dropdown above or use "Other" as a catch-all for remaining assets.
+        <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'oklch(45% 0.01 240)', lineHeight: 1.55 }}>
+          Target allocations should sum to 100%, including Futures USDT when used. Futures below its target are injection-only and will never create an automatic SPOT ➔ FUT rebalance order; Futures above its target can show a FUT ➔ SPOT transfer suggestion.
         </p>
       </div>
 

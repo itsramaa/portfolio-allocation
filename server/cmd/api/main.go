@@ -7,6 +7,7 @@ import (
 	"portfolio-server/internal/db"
 	"portfolio-server/internal/handler"
 	"portfolio-server/internal/middleware"
+	"portfolio-server/internal/narratives"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -20,6 +21,7 @@ func main() {
 
 	// Initialize database
 	db.Init()
+	narratives.StartProviderScheduler()
 
 	app := fiber.New(fiber.Config{
 		AppName: "Portfolio Allocation API",

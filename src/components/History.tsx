@@ -175,7 +175,7 @@ export function History({
                 Reset harian setiap 07:00 WIB / 00:00 UTC
               </span>
             </div>
-            <div style={{ overflowX: 'auto' }}>
+            <div className="desktop-only" style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid oklch(100% 0 0 / 0.08)', color: 'oklch(50% 0.01 240)', textAlign: 'left' }}>
@@ -239,6 +239,26 @@ export function History({
                   })}
                 </tbody>
               </table>
+            </div>
+            <div className="mobile-card-list mobile-only">
+              {[...snapshots].reverse().map((snap, idx, arr) => {
+                const prev = arr[idx + 1]
+                const diff = prev ? snap.totalUSDT - prev.totalUSDT : 0
+                const diffPct = prev && prev.totalUSDT > 0 ? (diff / prev.totalUSDT) * 100 : 0
+                return (
+                  <div className="mobile-data-card" key={`mobile-${snap.timestamp}`}>
+                    <div className="mobile-data-card-header">
+                      <strong>{new Date(snap.timestamp).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short' })}</strong>
+                      <span className="mono">{formatCurrencyValue(convertUSDToCurrency(snap.totalUSDT, currency, rates), currency)}</span>
+                    </div>
+                    <div className="mobile-data-card-meta mono">
+                      <span>{formatWibDateTime(snap.timestamp)}</span>
+                      <span style={{ color: diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : 'oklch(60% 0.01 240)' }}>{prev ? `${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(2)}%` : '—'}</span>
+                      <span>BTC {snap.btcPrice ? formatCurrencyValue(convertUSDToCurrency(snap.btcPrice, currency, rates), currency) : '—'}</span>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </>

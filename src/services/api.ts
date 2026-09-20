@@ -285,12 +285,29 @@ export interface RebalanceOrderResponse {
 
 export interface RebalanceResultResponse {
   totalPortfolioUSDT: number
+  rebalanceBaseUSDT: number
   totalBuyUSDT: number
   totalSellUSDT: number
   netTurnoverUSDT: number
   estimatedFeesUSDT: number
   maxDriftPct: number
   orders: RebalanceOrderResponse[]
+}
+
+export interface BackendSignal {
+  score: number
+  available: boolean
+  confidence: number
+  change24h: number
+  change7d: number
+  sources: string[]
+}
+
+export interface BackendProviderStatus {
+  available: boolean
+  source: string
+  error?: string
+  updatedAt: number
 }
 
 export interface BackendNarrative {
@@ -303,12 +320,12 @@ export interface BackendNarrative {
   score24hChange: number
   score7dChange: number
   signals: {
-    social: number
-    market: number
-    volume: number
-    onchain: number
-    capitalFlow: number
-    catalyst: number
+    social: BackendSignal
+    market: BackendSignal
+    volume: BackendSignal
+    onchain: BackendSignal
+    capitalFlow: BackendSignal
+    catalyst: BackendSignal
   }
   signalChanges: {
     social24h: number
@@ -330,6 +347,14 @@ export interface NarrativesReportResponse {
   coveredCount: number
   totalNarratives: number
   diversificationScore: number
+  marketSentiment?: {
+    value: number
+    classification: string
+    available: boolean
+    source: string
+    updatedAt: number
+  }
+  providerStatuses?: Record<string, BackendProviderStatus>
 }
 
 export async function syncPortfolio(): Promise<PortfolioSyncResponse> {

@@ -53,6 +53,16 @@ func runMigrations() {
 			base         TEXT    NOT NULL DEFAULT 'USD',
 			last_updated INTEGER NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS narrative_signal_samples (
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			sampled_at   INTEGER NOT NULL,
+			narrative_id TEXT    NOT NULL,
+			metric       TEXT    NOT NULL,
+			source       TEXT    NOT NULL,
+			value        REAL    NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_narrative_metric_time
+			ON narrative_signal_samples (narrative_id, metric, sampled_at)`,
 	}
 	for _, s := range stmts {
 		if _, err := DB.Exec(s); err != nil {

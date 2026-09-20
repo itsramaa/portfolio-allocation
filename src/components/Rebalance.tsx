@@ -130,7 +130,7 @@ function OrderRow({
 export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: RebalanceProps) {
   const {
     confirmed, setConfirmed, showSkipped, setShowSkipped, calculating, error, rebalanceResult, setRebalanceResult,
-    totalUSDT, hasTargets, targetSum, actionable, skipped, triggered, sellTotal, buyTotal,
+    totalUSDT, spotRebalanceUSDT, futuresUnderTarget, hasTargets, targetSum, actionable, skipped, triggered, sellTotal, buyTotal,
     calculate: handleCalculate,
   } = useRebalance(assets, targets)
   const isUSD = currency === 'USD'
@@ -150,7 +150,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: 900 }} className="fade-up">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: 900 }} className="fade-up rebalance-page">
 
       {/* Header Card */}
       <div className="surface-card" style={{ padding: '2rem' }}>
@@ -167,14 +167,14 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
               </span>
               <br />
               <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'oklch(70% 0.01 240)', fontSize: '0.78rem' }}>
-                Gate 2 (Economic Minimum): drift value ≥ {(MIN_DRIFT_PORTFOLIO_RATIO * 100).toFixed(1)}% × portfolio ({fmtUSDT(totalUSDT * MIN_DRIFT_PORTFOLIO_RATIO)})
+                Gate 2 (Economic Minimum): drift value ≥ {(MIN_DRIFT_PORTFOLIO_RATIO * 100).toFixed(1)}% × spot rebalance base ({fmtUSDT(spotRebalanceUSDT * MIN_DRIFT_PORTFOLIO_RATIO)})
               </span>
               <br />
               <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'oklch(70% 0.01 240)', fontSize: '0.78rem' }}>
                 Gate 3 (Execution Guard): trade value ≥ ${MIN_ORDER_USDT} &amp; friction ≤ {(MAX_REBALANCE_COST_RATIO * 100).toFixed(0)}% trade value
               </span>
               <br />
-              <span style={{ color: 'oklch(45% 0.01 240)', fontSize: '0.78rem' }}>USDT &amp; Futures are excluded (liquidity / trading buckets).</span>
+              <span style={{ color: 'oklch(45% 0.01 240)', fontSize: '0.78rem' }}>Futures tetap masuk total kekayaan, tetapi kekurangan Futures hanya bisa diisi lewat Inject dan tidak membuat order SPOT ➔ FUT otomatis.</span>
             </p>
           </div>
         </div>
@@ -183,6 +183,12 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
         {Math.abs(targetSum - 100) > 0.5 && (
           <div role="alert" className="alert alert-warning mb-4" style={{ fontSize: '0.82rem' }}>
             <span>⚠️ Target allocations sum to <strong>{targetSum.toFixed(1)}%</strong> (should equal 100%). Update in Settings for accurate results.</span>
+          </div>
+        )}
+
+        {futuresUnderTarget.length > 0 && (
+          <div role="status" className="alert alert-warning" style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
+            Futures berada di bawah target. Saldo ini hanya dapat ditambah melalui Inject; rebalance tidak akan memindahkan dana spot ke Futures otomatis.
           </div>
         )}
 
@@ -200,8 +206,8 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Economic Min (0.5% Port.)</div>
-            <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#60a5fa' }}>{fmtUSDT(totalUSDT * MIN_DRIFT_PORTFOLIO_RATIO)}</div>
+            <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Spot Rebalance Base</div>
+            <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#60a5fa' }}>{fmtUSDT(spotRebalanceUSDT)}</div>
           </div>
           <div>
             <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Min Order Size</div>
@@ -309,7 +315,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                 <div style={{ fontSize: '0.75rem', color: 'oklch(45% 0.01 240)', fontStyle: 'italic' }}>Execute sells first, then buys</div>
               </div>
 
-              <div style={{ overflowX: 'auto' }}>
+              <div className="desktop-only" style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid oklch(100% 0 0 / 0.08)', color: 'oklch(50% 0.01 240)', textAlign: 'right' }}>
@@ -328,6 +334,22 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="mobile-card-list mobile-only">
+                {actionable.map(order => (
+                  <div className="mobile-data-card" key={`mobile-${order.symbol}`}>
+                    <div className="mobile-data-card-header">
+                      <strong>{order.symbol}</strong>
+                      <ActionBadge order={order} />
+                    </div>
+                    <div className="mobile-data-card-meta mono">
+                      <span>{fmtUSDT(order.amountUSDT)}</span>
+                      <span>Current {order.currentPct.toFixed(1)}%</span>
+                      <span>Target {order.targetPct.toFixed(1)}%</span>
+                      <span style={{ color: order.action === 'SELL' ? '#ef4444' : '#22c55e' }}>{fmtPct(order.diffPct)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -358,7 +380,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                     The drift will naturally grow until it crosses the threshold.
                     <strong style={{ color: '#f59e0b' }}> No action needed</strong> — the next rebalance will pick them up automatically.
                   </div>
-                  <div style={{ overflowX: 'auto' }}>
+                  <div className="desktop-only" style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                       <thead>
                         <tr style={{ borderBottom: '1px solid oklch(100% 0 0 / 0.06)', color: 'oklch(45% 0.01 240)', textAlign: 'right' }}>

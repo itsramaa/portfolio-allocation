@@ -1,4 +1,5 @@
 // ─── Main Application Shell ──────────────────────────────────────────────────
+import { useState } from 'react'
 import { usePortfolioApp } from './hooks/usePortfolioApp'
 import type { AppTab, TargetAllocation } from './types'
 import { loadCredentials } from './utils/storage'
@@ -21,6 +22,8 @@ function PortfolioApp() {
     mobileSidebarOpen, setMobileSidebarOpen, handleTargetsChange: updateTargets,
     handleToggleArchive, handleTabChange,
   } = usePortfolioApp()
+
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
 
   // Currency & FX rates management hook
   const { currency, fxRates, handleCurrencyChange, handleRefreshRates } = useCurrencyRates()
@@ -81,7 +84,7 @@ function PortfolioApp() {
   const sidebarWidth = sidebarCollapsed ? 68 : 240
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'oklch(10% 0.01 240)' }}>
+    <div className="app-shell" style={{ display: 'flex', minHeight: '100vh', background: 'oklch(10% 0.01 240)' }}>
       {/* Mobile sidebar overlay */}
       <div
         className={`sidebar-overlay${mobileSidebarOpen ? ' mobile-open' : ''}`}
@@ -108,7 +111,7 @@ function PortfolioApp() {
           padding: '2rem 2.5rem',
           marginLeft: sidebarWidth,
           width: `calc(100% - ${sidebarWidth}px)`,
-          transition: 'margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'opacity 0.2s ease',
           display: 'flex',
           flexDirection: 'column',
           gap: '1.75rem',
@@ -116,7 +119,7 @@ function PortfolioApp() {
       >
         {/* Top Header Bar */}
         <header className="app-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div className="app-brand-row" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
             {/* Mobile hamburger */}
             <button
               type="button"
@@ -128,8 +131,8 @@ function PortfolioApp() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div className="app-title-block" style={{ minWidth: 0 }}>
+              <div className="app-title-line" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#F0B90B' }}>
                   BINANCE
                 </span>
@@ -152,7 +155,7 @@ function PortfolioApp() {
             </div>
           </div>
 
-          <div className="app-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div className="app-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button
               id="refresh-button"
               type="button"
@@ -298,12 +301,12 @@ function PortfolioApp() {
             { id: 'rebalance' as AppTab, label: 'Rebalance', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg> },
             { id: 'history' as AppTab, label: 'History', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
             { id: 'settings' as AppTab, label: 'Settings', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg> },
-          ] as const).map(item => (
+          ] as const).filter(item => ['dashboard', 'inject', 'rebalance', 'settings'].includes(item.id)).map(item => (
             <button
               key={item.id}
               type="button"
               className={`mobile-nav-btn${activeTab === item.id ? ' active' : ''}`}
-              onClick={() => handleTabChange(item.id)}
+              onClick={() => { setMobileMoreOpen(false); handleTabChange(item.id) }}
               aria-label={item.label}
               aria-current={activeTab === item.id ? 'page' : undefined}
             >
@@ -311,7 +314,23 @@ function PortfolioApp() {
               {item.label}
             </button>
           ))}
+          <button
+            type="button"
+            className={`mobile-nav-btn${mobileMoreOpen || activeTab === 'history' || activeTab === 'narrative' ? ' active' : ''}`}
+            onClick={() => setMobileMoreOpen(value => !value)}
+            aria-label="More navigation"
+            aria-expanded={mobileMoreOpen}
+          >
+            <span aria-hidden="true" style={{ fontSize: '1.15rem', lineHeight: 1 }}>•••</span>
+            More
+          </button>
         </div>
+        {mobileMoreOpen && (
+          <div className="mobile-more-menu" role="menu">
+            <button type="button" role="menuitem" onClick={() => { setMobileMoreOpen(false); handleTabChange('history') }}>History</button>
+            <button type="button" role="menuitem" onClick={() => { setMobileMoreOpen(false); handleTabChange('narrative') }}>Narratives</button>
+          </div>
+        )}
       </nav>
     </div>
   )

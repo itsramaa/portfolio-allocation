@@ -34,6 +34,11 @@ export function getNarrativeOverviewStats(narratives: Narrative[]): NarrativeOve
   return { emerging, growing, hot, cooling, topTrending }
 }
 
+function normalizeAssetSymbol(symbol: string): string {
+  const upper = symbol.toUpperCase().trim()
+  return upper === 'RNDR' ? 'RENDER' : upper === 'MATIC' ? 'POL' : upper
+}
+
 /**
  * Computes each narrative's portfolio exposure: the sum of currentPct of all
  * held assets that belong to a given narrative.
@@ -43,7 +48,7 @@ export function computePortfolioExposure(
   narratives: Narrative[],
   assets: Asset[]
 ): NarrativeExposure[] {
-  const held = new Map(assets.map(a => [a.symbol, a.currentPct]))
+  const held = new Map(assets.map(a => [normalizeAssetSymbol(a.symbol), a.currentPct]))
   const exposures: NarrativeExposure[] = []
 
   for (const n of narratives) {
@@ -51,7 +56,7 @@ export function computePortfolioExposure(
     let total = 0
 
     for (const sym of n.assets) {
-      const pct = held.get(sym) ?? 0
+      const pct = held.get(normalizeAssetSymbol(sym)) ?? 0
       if (pct > 0) {
         matched.push({ symbol: sym, currentPct: pct })
         total += pct
@@ -93,5 +98,6 @@ export const LIFECYCLE_META: Record<string, { label: string; color: string; desc
   growing:     { label: 'Growing',     color: '#3b82f6', description: 'Sustained momentum — attention and market activity are both increasing.' },
   mainstream:  { label: 'Mainstream',  color: '#F0B90B', description: 'Broadly known — most alpha captured, narrative stable but not accelerating.' },
   crowded:     { label: 'Crowded',     color: '#f97316', description: 'Historically elevated attention — late-cycle positioning risk increasing.' },
+  'insufficient-data': { label: 'Insufficient Data', color: '#6b7280', description: 'Free data sources are not available yet for this narrative.' },
   cooling:     { label: 'Cooling',     color: '#6b7280', description: 'Declining attention and activity — narrative rotating out of focus.' },
 }

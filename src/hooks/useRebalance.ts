@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { Asset, TargetAllocation } from '../types'
 import { calculateRebalance } from '../services/api'
 import type { RebalanceResultResponse } from '../services/api'
-import { MIN_ORDER_USDT, REBALANCE_FLOOR_PP, resolveTargetPct } from '../lib/portfolio'
+import { MIN_ORDER_USDT, REBALANCE_FLOOR_PP, resolveTargetPct, isFuturesAsset } from '../lib/portfolio'
 
 export function useRebalance(assets: Asset[], targets: TargetAllocation) {
   const [confirmed, setConfirmed] = useState(false)
@@ -11,6 +11,8 @@ export function useRebalance(assets: Asset[], targets: TargetAllocation) {
   const [error, setError] = useState<string | null>(null)
   const [rebalanceResult, setRebalanceResult] = useState<RebalanceResultResponse | null>(null)
   const totalUSDT = useMemo(() => assets.reduce((sum, asset) => sum + asset.usdtValue, 0), [assets])
+  const spotRebalanceUSDT = useMemo(() => assets.filter(asset => !isFuturesAsset(asset.symbol)).reduce((sum, asset) => sum + asset.usdtValue, 0), [assets])
+  const futuresUnderTarget = useMemo(() => assets.filter(asset => isFuturesAsset(asset.symbol) && asset.targetPct > 0 && asset.usdtValue < (asset.targetPct / 100) * totalUSDT), [assets, totalUSDT])
   const hasTargets = Object.values(targets).some(value => value > 0)
   const targetSum = Object.values(targets).reduce((sum, value) => sum + value, 0)
   const actionable = useMemo(() => rebalanceResult?.orders?.filter(order => order.amountUSDT >= MIN_ORDER_USDT) ?? [], [rebalanceResult])
@@ -59,5 +61,5 @@ export function useRebalance(assets: Asset[], targets: TargetAllocation) {
       setCalculating(false)
     }
   }
-  return { confirmed, setConfirmed, showSkipped, setShowSkipped, calculating, error, rebalanceResult, setRebalanceResult, totalUSDT, hasTargets, targetSum, actionable, skipped, triggered, sellTotal, buyTotal, calculate }
+  return { confirmed, setConfirmed, showSkipped, setShowSkipped, calculating, error, rebalanceResult, setRebalanceResult, totalUSDT, spotRebalanceUSDT, futuresUnderTarget, hasTargets, targetSum, actionable, skipped, triggered, sellTotal, buyTotal, calculate }
 }

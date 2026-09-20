@@ -93,7 +93,7 @@ export function Inject({
         gap: "1.5rem",
         maxWidth: 840,
       }}
-      className="fade-up"
+      className="fade-up inject-page"
     >
       {/* Input card */}
       <div className="surface-card" style={{ padding: "2rem" }}>
@@ -107,7 +107,7 @@ export function Inject({
             marginBottom: "0.5rem",
           }}
         >
-          <div>
+          <div style={{ minWidth: 0 }}>
             <h2
               style={{
                 fontSize: "1.2rem",
@@ -431,7 +431,7 @@ export function Inject({
             </div>
           </div>
 
-          <div style={{ overflowX: "auto" }}>
+          <div className="desktop-only" style={{ overflowX: "auto" }}>
             <table
               style={{
                 width: "100%",
@@ -652,6 +652,26 @@ export function Inject({
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="mobile-card-list mobile-only">
+            {result.items.map(r => {
+              const localValue = convertUSDToCurrency(r.allocated, currency, rates)
+              const buyPct = result.depositAmount > 0 ? (r.allocated / result.depositAmount) * 100 : 0
+              return (
+                <div className="mobile-data-card" key={`mobile-${r.symbol}`}>
+                  <div className="mobile-data-card-header">
+                    <strong>{r.symbol}</strong>
+                    <span className="mono" style={{ color: '#22c55e' }}>{fmtUSDT(r.allocated)}</span>
+                  </div>
+                  <div className="mobile-data-card-meta mono">
+                    <span>{buyPct.toFixed(1)}% cash</span>
+                    <span>New {r.newPct.toFixed(1)}%</span>
+                    <span>Target {r.targetPct.toFixed(1)}%</span>
+                    {isNonUSD && <span>{formatCurrencyValue(localValue, currency)}</span>}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 // ─── useNarratives hook ───────────────────────────────────────────────────────
 import { useState, useEffect, useMemo } from 'react'
-import type { Asset, Narrative, NarrativeExposure, NarrativeOverviewStats } from '../types'
+import type { Asset, Narrative, NarrativeExposure, NarrativeOverviewStats, NarrativeSignals } from '../types'
 import { getNarrativeOverviewStats, computePortfolioExposure } from '../lib/narratives'
 import { fetchNarratives } from '../services/api'
 import type { BackendNarrative } from '../services/api'
@@ -34,7 +34,17 @@ function adaptNarrative(b: BackendNarrative): Narrative {
     score: b.score,
     score24hChange: b.score24hChange,
     score7dChange: b.score7dChange,
-    signals: b.signals,
+    signals: {
+      social: b.signals.social.score,
+      market: b.signals.market.score,
+      volume: b.signals.volume.score,
+      onchain: b.signals.onchain.score,
+      capitalFlow: b.signals.capitalFlow.score,
+      catalyst: b.signals.catalyst.score,
+    },
+    signalAvailability: Object.fromEntries((Object.keys(b.signals) as Array<keyof NarrativeSignals>).map(key => [key, b.signals[key].available])) as Partial<Record<keyof NarrativeSignals, boolean>>,
+    signalConfidence: Object.fromEntries((Object.keys(b.signals) as Array<keyof NarrativeSignals>).map(key => [key, b.signals[key].confidence])) as Partial<Record<keyof NarrativeSignals, number>>,
+    signalSources: Object.fromEntries((Object.keys(b.signals) as Array<keyof NarrativeSignals>).map(key => [key, b.signals[key].sources])) as Partial<Record<keyof NarrativeSignals, string[]>>,
     signalChanges: b.signalChanges,
     assets: b.assets,
     drivers: b.drivers,

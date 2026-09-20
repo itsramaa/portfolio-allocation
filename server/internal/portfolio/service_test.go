@@ -1,9 +1,8 @@
 package portfolio
 
 import (
-	"testing"
-
 	"portfolio-server/internal/config"
+	"testing"
 )
 
 func TestCalculateRebalanceUsesAdaptiveBandAndEconomicMinimum(t *testing.T) {
@@ -84,6 +83,62 @@ func TestCalculateCashInjectionEmptyItemsIsNonNil(t *testing.T) {
 	result := CalculateCashInjection(nil, map[string]float64{}, 100)
 	if result.Items == nil {
 		t.Fatal("expected non-nil items")
+	}
+}
+
+func TestCalculateRebalanceFuturesUnderTargetIsInjectionOnly(t *testing.T) {
+	result := CalculateRebalance([]Asset{
+		{Symbol: "BTC", Value: 450, Price: 1, TargetPct: 45},
+		{Symbol: "ETH", Value: 450, Price: 1, TargetPct: 45},
+		{Symbol: "FUTURES_USDT", Value: 0, Price: 1, TargetPct: 10},
+	}, 5, 1)
+	for _, order := range result.Orders {
+		if order.Symbol == "FUTURES_USDT" {
+			t.Fatalf("under-target Futures must not create an order: %#v", order)
+		}
+	}
+	if len(result.Orders) != 0 {
+		t.Fatalf("a Futures loss alone must not disturb balanced spot allocation: %#v", result.Orders)
+	}
+}
+
+func TestCalculateRebalanceFuturesOverweightSuggestsTransferOut(t *testing.T) {
+	result := CalculateRebalance([]Asset{
+		{Symbol: "BTC", Value: 450, Price: 1, TargetPct: 45},
+		{Symbol: "ETH", Value: 450, Price: 1, TargetPct: 45},
+		{Symbol: "FUTURES_USDT", Value: 200, Price: 1, TargetPct: 10},
+	}, 5, 1)
+	for _, order := range result.Orders {
+		if order.Symbol == "FUTURES_USDT" {
+			if order.Action != "SELL" || order.IsTriggered {
+				t.Fatalf("expected non-triggered FUT to SPOT guidance, got %#v", order)
+			}
+			return
+		}
+	}
+	t.Fatal("expected an overweight Futures transfer guidance")
+}
+
+func TestCalculateRebalanceNormalizesSpotTargetsWhenFuturesTargetExists(t *testing.T) {
+	result := CalculateRebalance([]Asset{
+		{Symbol: "BTC", Value: 90, Price: 1, TargetPct: 45},
+		{Symbol: "ETH", Value: 10, Price: 1, TargetPct: 45},
+		{Symbol: "FUTURES_USDT", Value: 0, Price: 1, TargetPct: 10},
+	}, 1, 1)
+	var btc, eth *RebalanceOrder
+	for i := range result.Orders {
+		if result.Orders[i].Symbol == "BTC" {
+			btc = &result.Orders[i]
+		}
+		if result.Orders[i].Symbol == "ETH" {
+			eth = &result.Orders[i]
+		}
+	}
+	if btc == nil || eth == nil || btc.TargetPct != 50 || eth.TargetPct != 50 || btc.AmountUSDT != 40 || eth.AmountUSDT != 40 {
+		t.Fatalf("expected normalized 50/50 spot targets and $40 trades, got %#v", result.Orders)
+	}
+	if result.RebalanceBaseUSDT != 100 || result.TotalPortfolioUSDT != 100 {
+		t.Fatalf("expected separate account and spot totals, got %#v", result)
 	}
 }
 
