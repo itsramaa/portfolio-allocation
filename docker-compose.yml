@@ -15,8 +15,6 @@ services:
       NODE_ENV: production
       BINANCE_API_KEY: ${BINANCE_API_KEY}
       BINANCE_API_SECRET: ${BINANCE_API_SECRET}
-      VITE_BINANCE_API_KEY: ${VITE_BINANCE_API_KEY}
-      VITE_BINANCE_API_SECRET: ${VITE_BINANCE_API_SECRET}
       COINGECKO_API_KEY: ${COINGECKO_API_KEY}
       COINGECKO_BASE_URL: ${COINGECKO_BASE_URL}
       NARRATIVE_COINGECKO_MARKET_IDS: ${NARRATIVE_COINGECKO_MARKET_IDS}
@@ -80,6 +78,12 @@ services:
       CRYPTOQUANT_ACTIVE_ADDRESS_BASELINE: ${CRYPTOQUANT_ACTIVE_ADDRESS_BASELINE}
       CRYPTOQUANT_EXCHANGE_FLOW_BASELINE: ${CRYPTOQUANT_EXCHANGE_FLOW_BASELINE}
       CRYPTOQUANT_RESERVE_BASELINE: ${CRYPTOQUANT_RESERVE_BASELINE}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/config"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     volumes:
       - ./server/data:/app/data
     extra_hosts:
@@ -94,14 +98,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        VITE_BINANCE_API_KEY: ${VITE_BINANCE_API_KEY}
-        VITE_BINANCE_API_SECRET: ${VITE_BINANCE_API_SECRET}
     image: portfolio-allocation:latest
     container_name: portfolio-allocation
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "0.0.0.0:3000:80"
     extra_hosts:

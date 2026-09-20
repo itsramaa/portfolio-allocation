@@ -3,12 +3,6 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Accept build args from docker-compose / docker build
-ARG VITE_BINANCE_API_KEY
-ARG VITE_BINANCE_API_SECRET
-ENV VITE_BINANCE_API_KEY=$VITE_BINANCE_API_KEY
-ENV VITE_BINANCE_API_SECRET=$VITE_BINANCE_API_SECRET
-
 # Install dependencies first (layer cache)
 COPY package.json package-lock.json ./
 RUN npm ci
