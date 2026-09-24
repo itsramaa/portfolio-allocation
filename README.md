@@ -140,6 +140,31 @@ The current implementation includes Futures positions in total portfolio value b
 | G-3 | **Narrative auto-exposure alerts** | Alert when portfolio narrative concentration exceeds a configurable threshold | 🔲 Planned |
 | G-4 | **Export to CSV/PDF** | Download rebalance plan, injection plan, and history snapshots | 🔲 Planned |
 
+### Narrative Intelligence — Phase 2
+
+The core ambition: turn the Narratives tab from a read-only monitor into an active allocation copilot. The current scoring engine (social, volume, on-chain, capital flow signals) is the foundation — these features build the decision layer on top of it.
+
+| # | Feature | Description | Status |
+|---|---|---|---|
+| N-1 | **Narrative scoring engine — production** | Complete the backend deployment of real signal aggregation; move off the current development-mode stubs to live data | 🔧 In Progress |
+| N-2 | **Narrative rotation signals** | Highlight which narratives are approaching peak momentum (crowded) vs. which are just starting to accelerate (emerging) — surface the optimal entry and exit windows per theme | 🔲 Planned |
+| N-3 | **Altcoin slot system** | Designate a configurable portion of the portfolio (e.g. 20%) as the "rotation bucket" — assets in this bucket are swapped according to narrative momentum rather than held as core positions | 🔲 Planned |
+| N-4 | **Narrative-driven rebalance suggestions** | When a narrative peaks or cools, the system generates a suggested swap: exit the cooling coin, enter the emerging one, within the rotation bucket — without touching BTC or core long-term holds | 🔲 Planned |
+| N-5 | **Narrative exposure concentration warnings** | Alert when multiple altcoins in the portfolio belong to the same narrative theme, creating hidden correlated risk that a simple allocation percentage doesn't reveal | 🔲 Planned |
+| N-6 | **Narrative momentum history** | Track how a narrative's score has moved over the past 7/30/90 days — know whether you're early, in the middle, or late to a theme | 🔲 Planned |
+
+### AI Position Copilot
+
+An AI assistant scoped specifically to the decisions this app already supports — not generic crypto advice, but reasoning grounded in your actual portfolio state, current narrative scores, and Binance Futures mechanics.
+
+| # | Feature | Description | Status |
+|---|---|---|---|
+| A-1 | **Futures open-position advisor** | Chat interface that takes your current portfolio state + a proposed Futures position and reasons through sizing, leverage, and allocation impact before you open | 🔲 Planned |
+| A-2 | **Narrative rotation assistant** | Given current narrative scores and your holdings, the AI suggests which altcoin slot to rotate out of and into — with reasoning based on lifecycle stage and signal trajectory | 🔲 Planned |
+| A-3 | **Inject timing advisor** | When adding fresh capital, AI contextualizes the inject plan against current narrative momentum — e.g. "this allocation increases your DeFi exposure at a crowded lifecycle stage" | 🔲 Planned |
+| A-4 | **Rebalance risk reasoning** | Before executing a rebalance plan, AI flags non-obvious risks: high narrative concentration, correlated sells, adverse timing relative to signal trends | 🔲 Planned |
+| A-5 | **Context-aware chat** | Persistent chat sidebar with full awareness of your live portfolio, targets, narrative scores, and history — answers questions like "am I too exposed to AI narrative?" or "when should I trim SOL?" | 🔲 Planned |
+
 ---
 
 ## 📖 Architecture
