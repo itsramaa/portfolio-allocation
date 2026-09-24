@@ -1,4 +1,4 @@
-@import "@fontsource/jetbrains-mono/400.css";
+﻿@import "@fontsource/jetbrains-mono/400.css";
 @import "@fontsource/jetbrains-mono/500.css";
 @import "@fontsource/jetbrains-mono/700.css";
 @import "@fontsource/geist/400.css";
@@ -9,7 +9,7 @@
   themes: false;
 }
 
-/* ─── Binance Quant Dark Theme ─── */
+/* â”€â”€â”€ Binance Quant Dark Theme â”€â”€â”€ */
 @plugin "daisyui/theme" {
   name: "binance-dark";
   default: true;
@@ -49,7 +49,7 @@
   --noise: 0;
 }
 
-/* ─── Global resets ─── */
+/* â”€â”€â”€ Global resets â”€â”€â”€ */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -67,14 +67,14 @@ body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-/* ─── Monospace numerals ─── */
+/* â”€â”€â”€ Monospace numerals â”€â”€â”€ */
 .mono {
   font-family: "JetBrains Mono", "Fira Code", monospace;
   font-feature-settings: "tnum";
   letter-spacing: -0.02em;
 }
 
-/* ─── Scrollbar ─── */
+/* â”€â”€â”€ Scrollbar â”€â”€â”€ */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -90,35 +90,35 @@ body {
   background: oklch(40% 0.02 240);
 }
 
-/* ─── Text selection ─── */
+/* â”€â”€â”€ Text selection â”€â”€â”€ */
 ::selection {
   background: oklch(80% 0.18 85 / 0.25);
   color: oklch(95% 0.01 85);
 }
 
-/* ─── Caret ─── */
+/* â”€â”€â”€ Caret â”€â”€â”€ */
 input, textarea {
   caret-color: oklch(80% 0.18 85);
 }
 
-/* ─── Gold glow (KPI numbers) ─── */
+/* â”€â”€â”€ Gold glow (KPI numbers) â”€â”€â”€ */
 .kpi-glow {
   text-shadow: 0 0 20px oklch(80% 0.18 85 / 0.5), 0 0 40px oklch(80% 0.18 85 / 0.2);
 }
 
-/* ─── Card surface ─── */
+/* â”€â”€â”€ Card surface â”€â”€â”€ */
 .surface-card {
   background: oklch(13% 0.012 240);
   border: 1px solid oklch(100% 0 0 / 0.07);
   border-radius: 0.375rem;
 }
 
-/* ─── Positive/Negative delta ─── */
+/* â”€â”€â”€ Positive/Negative delta â”€â”€â”€ */
 .delta-pos { color: oklch(68% 0.18 150); }
 .delta-neg { color: oklch(62% 0.22 25); }
 .delta-neu { color: oklch(55% 0.01 240); }
 
-/* ─── Sidebar nav item ─── */
+/* â”€â”€â”€ Sidebar nav item â”€â”€â”€ */
 .nav-item {
   display: flex;
   align-items: center;
@@ -166,7 +166,7 @@ input, textarea {
   font-size: 0.85rem;
 }
 
-/* ─── Skeleton pulse ─── */
+/* â”€â”€â”€ Skeleton pulse â”€â”€â”€ */
 @keyframes skeletonPulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.7; }
@@ -177,7 +177,7 @@ input, textarea {
   animation: skeletonPulse 1.5s ease-in-out infinite;
 }
 
-/* ─── Fade-in animation ─── */
+/* â”€â”€â”€ Fade-in animation â”€â”€â”€ */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -186,7 +186,7 @@ input, textarea {
   animation: fadeUp 0.3s ease-out forwards;
 }
 
-/* ─── Chart tooltip ─── */
+/* â”€â”€â”€ Chart tooltip â”€â”€â”€ */
 .chart-tooltip {
   background: oklch(16% 0.015 240) !important;
   border: 1px solid oklch(100% 0 0 / 0.1) !important;
@@ -196,13 +196,13 @@ input, textarea {
   color: oklch(85% 0.01 240);
 }
 
-/* ─── Focus ring ─── */
+/* â”€â”€â”€ Focus ring â”€â”€â”€ */
 :focus-visible {
   outline: 2px solid oklch(80% 0.18 85 / 0.7);
   outline-offset: 2px;
 }
 
-/* ─── Responsive layout primitives ─── */
+/* â”€â”€â”€ Responsive layout primitives â”€â”€â”€ */
 .page-stack {
   display: flex;
   flex-direction: column;
@@ -266,7 +266,7 @@ input, textarea {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
 }
 
-/* ─── Mobile bottom nav bar ─── */
+/* â”€â”€â”€ Mobile bottom nav bar â”€â”€â”€ */
 .app-shell {
   overflow-x: clip;
 }
@@ -277,7 +277,6 @@ input, textarea {
   left: 0;
   right: 0;
   z-index: 60;
-  position: relative;
   background: oklch(11% 0.012 240);
   border-top: 1px solid oklch(100% 0 0 / 0.09);
   padding: 0.5rem 0 env(safe-area-inset-bottom, 0.25rem);
@@ -311,15 +310,25 @@ input, textarea {
   color: oklch(80% 0.18 85);
 }
 
+.mobile-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  width: 100%;
+  position: relative;
+}
+
 .mobile-nav-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 0.2rem;
+  flex: 1 1 0;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0.35rem 0.75rem;
+  padding: 0.4rem 0.25rem;
   border-radius: 0.375rem;
   color: oklch(55% 0.01 240);
   font-size: 0.6rem;
@@ -327,9 +336,9 @@ input, textarea {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   transition: color 0.15s, background 0.15s;
-  min-width: 48px;
-  min-height: 48px;
+  min-height: 52px;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
 .mobile-nav-btn.active {
   color: oklch(80% 0.18 85);
@@ -338,7 +347,7 @@ input, textarea {
   background: oklch(80% 0.18 85 / 0.1);
 }
 
-/* ─── Sidebar overlay for mobile ─── */
+/* â”€â”€â”€ Sidebar overlay for mobile â”€â”€â”€ */
 .sidebar-overlay {
   display: none;
   position: fixed;
@@ -348,7 +357,7 @@ input, textarea {
   backdrop-filter: blur(2px);
 }
 
-/* ─── Mobile hamburger button ─── */
+/* â”€â”€â”€ Mobile hamburger button â”€â”€â”€ */
 .mobile-menu-btn {
   display: none;
   background: none;
@@ -360,7 +369,7 @@ input, textarea {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ─── Table row hover ─── */
+/* â”€â”€â”€ Table row hover â”€â”€â”€ */
 .table-row-hover:hover,
 .hover-row:hover {
   background: oklch(100% 0 0 / 0.025);
@@ -377,7 +386,36 @@ input, textarea {
   min-width: 760px;
 }
 
-/* ─── Responsive breakpoints ─── */
+
+/* â”€â”€â”€ Inject form row â”€â”€â”€ */
+.inject-form-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+/* â”€â”€â”€ Rebalance gate detail â”€â”€â”€ */
+.rebalance-gates-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.65rem;
+}
+.rebalance-gates-detail .gate-line {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: oklch(65% 0.01 240);
+  line-height: 1.55;
+}
+.rebalance-gates-detail .gate-note {
+  font-size: 0.75rem;
+  color: oklch(45% 0.01 240);
+  line-height: 1.5;
+  margin-top: 0.15rem;
+}
+
+/* â”€â”€â”€ Responsive breakpoints â”€â”€â”€ */
 @media (max-width: 1024px) {
   .stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -391,7 +429,7 @@ input, textarea {
 }
 
 @media (max-width: 768px) {
-  /* Mobile uses bottom navigation as the only primary navigation. */
+  /* â”€â”€ Navigation â”€â”€ */
   .mobile-nav {
     display: block;
   }
@@ -401,15 +439,17 @@ input, textarea {
     display: none !important;
   }
 
+  /* â”€â”€ Main content area â”€â”€ */
   .app-main {
     margin-left: 0 !important;
     width: 100% !important;
     max-width: 100vw;
-    padding: 1rem 1rem calc(6.25rem + env(safe-area-inset-bottom, 0px)) !important;
-    gap: 1.15rem !important;
+    padding: 1rem 0.875rem calc(6.5rem + env(safe-area-inset-bottom, 0px)) !important;
+    gap: 1rem !important;
     overflow-x: clip;
   }
 
+  /* â”€â”€ Desktop/mobile content switching â”€â”€ */
   .desktop-only {
     display: none !important;
   }
@@ -421,12 +461,16 @@ input, textarea {
   .mobile-card-list {
     gap: 0.65rem;
   }
-  .mobile-nav {
-    position: fixed;
-  }
+
+  /* â”€â”€ Section cards â”€â”€ */
   .section-card {
-    padding: 1.1rem !important;
+    padding: 1rem !important;
   }
+  .surface-card {
+    border-radius: 0.5rem;
+  }
+
+  /* â”€â”€ Responsive action bar â”€â”€ */
   .responsive-action-bar {
     align-items: stretch;
     flex-direction: column;
@@ -435,46 +479,80 @@ input, textarea {
     width: 100%;
   }
 
-
+  /* â”€â”€ Stat grids: keep 2-col at 768, saves vertical space â”€â”€ */
   .stat-grid,
-  .stat-grid-5,
+  .stat-grid-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
   .charts-grid {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
 
+  /* â”€â”€ Stat card internals: tighter padding + smaller font â”€â”€ */
+  .stat-grid .surface-card,
+  .stat-grid-5 .surface-card {
+    padding: 0.875rem 1rem !important;
+  }
+  .kpi-glow {
+    font-size: 1.35rem !important;
+  }
+
+  /* â”€â”€ App header â”€â”€ */
   .app-header {
     flex-direction: column;
     align-items: stretch !important;
-    gap: 0.75rem;
+    gap: 0.65rem;
   }
   .app-brand-row {
     width: 100%;
   }
   .app-title-line {
-    gap: 0.35rem 0.55rem !important;
+    gap: 0.35rem 0.5rem !important;
   }
   .app-title-line > span:nth-child(2) {
     flex-basis: 100%;
-    font-size: 0.78rem !important;
+    font-size: 0.75rem !important;
   }
   .app-title-block p {
     line-height: 1.45;
+    font-size: 0.72rem !important;
   }
+
+  /* â”€â”€ Header actions: icon buttons stay compact, CTA fills remainder â”€â”€ */
   .app-header-actions {
     width: 100%;
-    display: grid !important;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.55rem !important;
+    display: flex !important;
+    flex-wrap: nowrap;
+    gap: 0.5rem !important;
+    align-items: center;
   }
-  .app-header-actions > button {
-    width: 100%;
-    min-height: 42px;
+  .app-header-actions > button:not(.header-main-action) {
+    flex: 0 0 auto;
+    min-height: 40px;
+    min-width: 40px;
+  }
+  .app-header-actions > button.header-main-action {
+    flex: 1 1 auto;
+    min-height: 40px;
+    font-size: 0.72rem !important;
   }
 
-  .mobile-nav-inner {
-    padding-inline: 0.35rem;
+  /* Active dot indicator above icon */
+  .mobile-nav-btn.active::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: oklch(80% 0.18 85);
   }
 
+  /* â”€â”€ Page containers â”€â”€ */
   .settings-page,
   .inject-page,
   .rebalance-page {
@@ -484,9 +562,19 @@ input, textarea {
   .settings-page .surface-card,
   .inject-page .surface-card,
   .rebalance-page .surface-card {
-    padding: 1.1rem !important;
+    padding: 1rem !important;
   }
 
+  /* â”€â”€ Inject form: stack input above button â”€â”€ */
+  .inject-form-row {
+    grid-template-columns: 1fr;
+  }
+  .inject-form-row > button[type="submit"] {
+    width: 100%;
+    min-height: 3rem;
+  }
+
+  /* â”€â”€ Table scroll containment â”€â”€ */
   .dashboard-table-scroll,
   .inject-page [style*="overflow-x: auto"],
   .rebalance-page [style*="overflow-x: auto"] {
@@ -494,6 +582,7 @@ input, textarea {
     padding-inline: 0.25rem;
   }
 
+  /* â”€â”€ Settings target rows â”€â”€ */
   .settings-target-row {
     grid-template-columns: 1fr auto !important;
     gap: 0.55rem !important;
@@ -507,14 +596,13 @@ input, textarea {
   }
   .settings-target-row > button {
     grid-column: 2;
-    grid-row: 1;
     grid-row: 1 / span 2;
   }
   .settings-target-list {
     gap: 0.5rem !important;
   }
 
-
+  /* â”€â”€ Narratives â”€â”€ */
   .narrative-sort {
     width: 100%;
     margin-left: 0 !important;
@@ -543,25 +631,44 @@ input, textarea {
     align-items: flex-start !important;
     flex-direction: column;
   }
+
+  /* â”€â”€ Rebalance gate formulas â”€â”€ */
+  .rebalance-gates-detail {
+    border-left: 2px solid oklch(100% 0 0 / 0.08);
+    padding-left: 0.75rem;
+  }
+  .rebalance-gates-detail .gate-line {
+    font-size: 0.68rem;
+    word-break: break-word;
+  }
 }
 
 @media (max-width: 480px) {
+  /* Collapse stat-grid to single column on very small screens */
   .stat-grid,
   .stat-grid-5 {
     grid-template-columns: 1fr;
   }
+
   .app-main {
-    padding: 0.75rem 0.75rem calc(6.25rem + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 0.75rem 0.75rem calc(6.5rem + env(safe-area-inset-bottom, 0px)) !important;
   }
+
+  /* Header CTA wraps to full row below icon buttons */
   .app-header-actions {
-    grid-template-columns: 1fr;
+    flex-wrap: wrap !important;
   }
+  .app-header-actions > button.header-main-action {
+    flex: 1 1 100%;
+  }
+
+  /* Bottom nav: horizontal scroll */
   .mobile-nav {
     padding-inline: 0.25rem;
   }
   .mobile-nav-inner {
     justify-content: flex-start;
-    gap: 0.15rem;
+    gap: 0.1rem;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
@@ -570,7 +677,7 @@ input, textarea {
     display: none;
   }
   .mobile-nav-btn {
-    flex: 0 0 4.5rem;
-    padding: 0.35rem 0.35rem;
+    flex: 0 0 4.25rem;
+    padding: 0.35rem 0.25rem;
   }
 }

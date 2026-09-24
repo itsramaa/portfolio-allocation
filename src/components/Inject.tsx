@@ -8,12 +8,15 @@ import {
 } from "../utils/currency";
 import { useInjection } from "../hooks/useInjection";
 
+const HIDDEN = '••••••'
+
 interface InjectProps {
   assets: Asset[];
   targets: TargetAllocation;
   currency: CurrencyCode;
   rates: Record<string, number>;
   onNavigateSettings: () => void;
+  hideValues?: boolean;
 }
 
 export function Inject({
@@ -22,6 +25,7 @@ export function Inject({
   currency,
   rates,
   onNavigateSettings,
+  hideValues = false,
 }: InjectProps) {
   const {
     inputCurrency,
@@ -197,14 +201,7 @@ export function Inject({
           onSubmit={handleCalculate}
           style={{ marginTop: "1.25rem" }}
         >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr auto",
-              gap: "1rem",
-              alignItems: "flex-end",
-            }}
-          >
+          <div className="inject-form-row">
             <div>
               <div
                 style={{
@@ -295,18 +292,14 @@ export function Inject({
                       <span>
                         Equivalent:{" "}
                         <strong className="mono" style={{ color: "#F0B90B" }}>
-                          ${injectionUSDT.toFixed(2)} USDT
+                          {hideValues ? HIDDEN : `$${injectionUSDT.toFixed(2)} USDT`}
                         </strong>
                       </span>
                     ) : (
                       <span>
                         Equivalent:{" "}
                         <strong className="mono" style={{ color: "#F0B90B" }}>
-                          {formatCurrencyValue(
-                            convertUSDToCurrency(parsedNum, currency, rates),
-                            currency,
-                          )}{" "}
-                          {currency}
+                          {hideValues ? HIDDEN : `${formatCurrencyValue(convertUSDToCurrency(parsedNum, currency, rates), currency)} ${currency}`}
                         </strong>
                       </span>
                     )}
@@ -331,8 +324,9 @@ export function Inject({
                     color: "oklch(55% 0.01 240)",
                   }}
                 >
-                  = {fmtPct(injectionPct)} of existing portfolio (
-                  {fmtUSDT(totalPortfolio)})
+                  {hideValues
+                    ? `= ${fmtPct(injectionPct)} of existing portfolio`
+                    : `= ${fmtPct(injectionPct)} of existing portfolio (${fmtUSDT(totalPortfolio)})`}
                 </div>
               )}
             </div>
@@ -380,42 +374,13 @@ export function Inject({
               >
                 Recommended Buy Plan
               </span>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: "0.5rem",
-                  marginTop: "0.2rem",
-                }}
-              >
-                <span
-                  className="mono"
-                  style={{
-                    fontSize: "1.1rem",
-                    fontWeight: 700,
-                    color: "#F0B90B",
-                  }}
-                >
-                  {fmtUSDT(result.depositAmount)} Total
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.2rem' }}>
+                <span className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#F0B90B' }}>
+                  {hideValues ? HIDDEN : `${fmtUSDT(result.depositAmount)} Total`}
                 </span>
-                {isNonUSD && (
-                  <span
-                    className="mono"
-                    style={{
-                      fontSize: "0.82rem",
-                      color: "oklch(60% 0.01 240)",
-                    }}
-                  >
-                    (≈{" "}
-                    {formatCurrencyValue(
-                      convertUSDToCurrency(
-                        result.depositAmount,
-                        currency,
-                        rates,
-                      ),
-                      currency,
-                    )}
-                    )
+                {isNonUSD && !hideValues && (
+                  <span className="mono" style={{ fontSize: '0.82rem', color: 'oklch(60% 0.01 240)' }}>
+                    (≈ {formatCurrencyValue(convertUSDToCurrency(result.depositAmount, currency, rates), currency)})
                   </span>
                 )}
               </div>
@@ -498,11 +463,11 @@ export function Inject({
                   const gapClosed =
                     r.targetPct > 0
                       ? Math.min(
-                          100,
-                          ((r.newPct - r.currentPct) /
-                            Math.max(0.01, r.targetPct - r.currentPct)) *
-                            100,
-                        )
+                        100,
+                        ((r.newPct - r.currentPct) /
+                          Math.max(0.01, r.targetPct - r.currentPct)) *
+                        100,
+                      )
                       : 0;
 
                   return (
@@ -573,7 +538,7 @@ export function Inject({
                           color: "oklch(95% 0.01 240)",
                         }}
                       >
-                        {fmtUSDT(r.allocated)}
+                        {hideValues ? HIDDEN : fmtUSDT(r.allocated)}
                       </td>
                       {isNonUSD && (
                         <td
@@ -584,7 +549,7 @@ export function Inject({
                             color: "#F0B90B",
                           }}
                         >
-                          {formatCurrencyValue(localValue, currency)}
+                          {hideValues ? HIDDEN : formatCurrencyValue(localValue, currency)}
                         </td>
                       )}
                       <td
@@ -661,13 +626,13 @@ export function Inject({
                 <div className="mobile-data-card" key={`mobile-${r.symbol}`}>
                   <div className="mobile-data-card-header">
                     <strong>{r.symbol}</strong>
-                    <span className="mono" style={{ color: '#22c55e' }}>{fmtUSDT(r.allocated)}</span>
+                    <span className="mono" style={{ color: '#22c55e' }}>{hideValues ? HIDDEN : fmtUSDT(r.allocated)}</span>
                   </div>
                   <div className="mobile-data-card-meta mono">
                     <span>{buyPct.toFixed(1)}% cash</span>
                     <span>New {r.newPct.toFixed(1)}%</span>
                     <span>Target {r.targetPct.toFixed(1)}%</span>
-                    {isNonUSD && <span>{formatCurrencyValue(localValue, currency)}</span>}
+                    {isNonUSD && <span>{hideValues ? HIDDEN : formatCurrencyValue(localValue, currency)}</span>}
                   </div>
                 </div>
               )

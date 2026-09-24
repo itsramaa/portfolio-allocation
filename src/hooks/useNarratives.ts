@@ -4,6 +4,8 @@ import type { Asset, Narrative, NarrativeExposure, NarrativeOverviewStats, Narra
 import { getNarrativeOverviewStats, computePortfolioExposure } from '../lib/narratives'
 import { fetchNarratives } from '../services/api'
 import type { BackendNarrative } from '../services/api'
+import { backendOnline } from '../utils/backendStatus'
+import { getLocalDemoNarratives } from '../utils/demoData'
 
 type SortKey = 'score' | 'score24hChange' | 'score7dChange' | 'name'
 type LifecycleFilter = 'all' | 'emerging' | 'growing' | 'mainstream' | 'crowded' | 'cooling'
@@ -67,15 +69,29 @@ export function useNarratives(assets: Asset[]): UseNarrativesReturn {
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetchNarratives().then(res => {
-      if (cancelled) return
-      if (res) setNarratives(res.narratives.map(adaptNarrative))
-      else setError('Failed to fetch narratives')
-    }).catch(err => {
-      if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to fetch narratives')
-    }).finally(() => {
-      if (!cancelled) setLoading(false)
-    })
+
+    const load = async () => {
+      try {
+        const res = backendOnline() ? await fetchNarratives() : null
+        if (cancelled) return
+        if (res) {
+          setNarratives(res.narratives.map(adaptNarrative))
+        } else {
+          // Backend offline or returned null — use local demo narratives
+          const local = getLocalDemoNarratives()
+          setNarratives(local.narratives.map(adaptNarrative))
+        }
+      } catch {
+        if (cancelled) return
+        // Any network error → fall back silently to local demo
+        const local = getLocalDemoNarratives()
+        setNarratives(local.narratives.map(adaptNarrative))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void load()
     return () => { cancelled = true }
   }, [tick])
 

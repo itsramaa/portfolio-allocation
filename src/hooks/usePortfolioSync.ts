@@ -4,6 +4,8 @@ import { loadCredentials, saveSnapshot, clearHistory } from '../utils/storage'
 import { syncPortfolio, demoPortfolio } from '../services/api'
 import type { BackendAsset } from '../services/api'
 import { calcRebalanceBand, resolveTargetPct } from '../lib/portfolio'
+import { backendOnline } from '../utils/backendStatus'
+import { getLocalDemoPortfolio } from '../utils/demoData'
 
 function mapBackendAsset(a: BackendAsset, targets: TargetAllocation): Asset {
   const logoColors: Record<string, string> = {
@@ -69,12 +71,12 @@ export function usePortfolioSync(targets: TargetAllocation) {
     }
   }, [])
 
-  // ─── Load demo portfolio from backend ──────────────────────────────────────
+  // ─── Load demo portfolio (backend or local fallback) ───────────────────────
   const loadDemoData = useCallback(async (currentTargets: TargetAllocation) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await demoPortfolio()
+      const res = backendOnline() ? await demoPortfolio() : getLocalDemoPortfolio()
       setPrices(res.prices)
       setAssets(res.assets.map(a => mapBackendAsset(a, currentTargets)))
       setConnectionStatus('connected')
@@ -83,7 +85,16 @@ export function usePortfolioSync(targets: TargetAllocation) {
         saveSnapshot({ timestamp: res.lastRefreshed, totalUSDT: res.totalUSDT, btcPrice: res.btcPrice })
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Demo data generation failed')
+      // Final fallback: always load local demo even if something above threw
+      try {
+        const res = getLocalDemoPortfolio()
+        setPrices(res.prices)
+        setAssets(res.assets.map(a => mapBackendAsset(a, currentTargets)))
+        setConnectionStatus('connected')
+        setLastRefreshed(res.lastRefreshed)
+      } catch {
+        setError(err instanceof Error ? err.message : 'Demo data generation failed')
+      }
     } finally {
       setLoading(false)
     }

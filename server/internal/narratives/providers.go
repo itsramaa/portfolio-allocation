@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -133,18 +134,21 @@ func collectFreeSignals() (map[string]NarrativeSignals, MarketSentiment, map[str
 	}
 
 	markets := fetchCoinGeckoMarkets(ctx, client)
-	binanceVolumes := fetchBinanceVolumes(ctx, client)
+	coingeckoAvailable := len(markets) > 0
+	binanceMarkets := fetchBinanceMarkets(ctx, client)
+	binanceVolumes := make(map[string]float64, len(binanceMarkets))
+	for symbol, market := range binanceMarkets {
+		binanceVolumes[symbol] = market.TotalVolume
+		if _, exists := markets[symbol]; !exists {
+			markets[symbol] = market
+		}
+	}
 	volumeHistory := recordAndLoadVolumeHistory(markets, binanceVolumes, time.Now())
 	statuses := map[string]ProviderStatus{}
 	updatedAt := time.Now().UnixMilli()
-	statuses["coingecko"] = ProviderStatus{Available: len(markets) > 0, Source: "CoinGecko Demo API", UpdatedAt: updatedAt}
+	statuses["coingecko"] = ProviderStatus{Available: coingeckoAvailable, Source: "CoinGecko Demo API", UpdatedAt: updatedAt}
 	statuses["binance"] = ProviderStatus{Available: len(binanceVolumes) > 0, Source: "Binance public API", UpdatedAt: updatedAt}
-	for _, narrative := range SeedNarratives {
-		signals := result[narrative.ID]
-		signals.Market = marketSignal(narrative, markets)
-		signals.Volume = volumeSignal(narrative, markets, binanceVolumes, volumeHistory[narrative.ID])
-		result[narrative.ID] = signals
-	}
+	applyMarketDerivedSignals(result, markets, binanceVolumes, volumeHistory)
 	applyAttentionSignals(ctx, client, result)
 	rssAvailable := false
 	for _, signals := range result {
@@ -192,11 +196,12 @@ func fetchCoinGeckoMarkets(ctx context.Context, client *http.Client) map[string]
 }
 
 type binanceTicker struct {
-	Symbol      string  `json:"symbol"`
-	QuoteVolume float64 `json:"quoteVolume,string"`
+	Symbol             string  `json:"symbol"`
+	QuoteVolume        float64 `json:"quoteVolume,string"`
+	PriceChangePercent float64 `json:"priceChangePercent,string"`
 }
 
-func fetchBinanceVolumes(ctx context.Context, client *http.Client) map[string]float64 {
+func fetchBinanceMarkets(ctx context.Context, client *http.Client) map[string]freeMarket {
 	cfg := config.Get()
 	symbols := make([]string, 0)
 	seen := make(map[string]bool)
@@ -212,16 +217,31 @@ func fetchBinanceVolumes(ctx context.Context, client *http.Client) map[string]fl
 			}
 		}
 	}
-	endpoint := cfg.NarrativeBinanceBaseURL + "/api/v3/ticker/24hr?symbols=" + url.QueryEscape(`[`+strings.Join(quotedSymbols(symbols), ",")+`]`)
+	wanted := make(map[string]bool)
+	for _, symbol := range symbols {
+		wanted[strings.TrimSuffix(symbol, "USDT")] = true
+	}
+	// Fetch all public 24h tickers and filter locally so an unsupported asset
+	// does not invalidate the entire Binance response.
+	endpoint := cfg.NarrativeBinanceBaseURL + "/api/v3/ticker/24hr"
 	var rows []binanceTicker
 	if err := httpJSON(ctx, client, endpoint, &rows); err != nil {
-		return map[string]float64{}
+		return map[string]freeMarket{}
 	}
-	volumes := make(map[string]float64, len(rows))
+	markets := make(map[string]freeMarket, len(rows))
 	for _, row := range rows {
-		volumes[strings.TrimSuffix(strings.ToUpper(row.Symbol), "USDT")] = row.QuoteVolume
+		symbol := strings.TrimSuffix(strings.ToUpper(row.Symbol), "USDT")
+		if !wanted[symbol] {
+			continue
+		}
+		markets[symbol] = freeMarket{
+			Symbol:        symbol,
+			TotalVolume:   row.QuoteVolume,
+			PriceChange24: row.PriceChangePercent,
+			PriceChange7:  row.PriceChangePercent,
+		}
 	}
-	return volumes
+	return markets
 }
 
 func quotedSymbols(symbols []string) []string {
@@ -246,6 +266,104 @@ func marketSignal(n Narrative, markets map[string]freeMarket) Signal {
 	return Signal{Score: clampScore(cfg.NarrativeScoreBase + average*cfg.NarrativeScoreScale), Available: true, Confidence: confidence(len(changes), len(n.Assets)), Change24h: average, Change7d: average, Sources: []string{"coingecko"}}
 }
 
+type narrativeMarketMetrics struct {
+	volume, attention, flow, catalyst float64
+	observed                          bool
+}
+
+func applyMarketDerivedSignals(result map[string]NarrativeSignals, markets map[string]freeMarket, binanceVolumes map[string]float64, volumeHistory map[string]db.NarrativeMetricHistory) {
+	// These are transparent public-market proxies, not claims about social activity,
+	// capital flows, or news events. They keep the detail panel useful on the
+	// first run, before RSS and historical samples are available.
+	values := make(map[string]narrativeMarketMetrics, len(SeedNarratives))
+	for _, narrative := range SeedNarratives {
+		var m narrativeMarketMetrics
+		var count float64
+		var marketCap float64
+		for _, symbol := range narrative.Assets {
+			market, ok := marketForSymbol(markets, symbol)
+			if !ok {
+				if volume, found := binanceVolumes[normalizeSymbol(symbol)]; found {
+					m.volume += volume
+				}
+				continue
+			}
+			count++
+			m.volume += market.TotalVolume
+			marketCap += market.MarketCap
+			turnover := 0.0
+			if market.MarketCap > 0 {
+				turnover = market.TotalVolume / market.MarketCap
+			}
+			m.attention += turnover + math.Abs(market.PriceChange24)/100
+			m.flow += market.MarketCap * (market.PriceChange24 / 100)
+			m.catalyst += market.PriceChange24*.4 + market.PriceChange7*.6
+		}
+		if count > 0 {
+			m.observed = true
+			m.attention /= count
+			m.catalyst /= count
+		}
+		if marketCap > 0 {
+			m.flow /= marketCap
+		}
+		values[narrative.ID] = m
+	}
+
+	volumeBaseline := positiveMedian(values, func(m narrativeMarketMetrics) float64 { return m.volume })
+	attentionBaseline := positiveMedian(values, func(m narrativeMarketMetrics) float64 { return m.attention })
+	for _, narrative := range SeedNarratives {
+		signals := result[narrative.ID]
+		m := values[narrative.ID]
+		if !signals.Market.Available {
+			signals.Market = marketSignal(narrative, markets)
+		}
+		if !signals.Volume.Available {
+			signals.Volume = volumeSignal(narrative, markets, binanceVolumes, volumeHistory[narrative.ID])
+		}
+		if !signals.Volume.Available && m.volume > 0 && volumeBaseline > 0 {
+			signals.Volume = proxySignal(m.volume, volumeBaseline, "market-data-volume-proxy")
+		}
+		if !signals.Social.Available && m.attention > 0 && attentionBaseline > 0 {
+			signals.Social = proxySignal(m.attention, attentionBaseline, "market-data-attention-proxy")
+		}
+		if !signals.Onchain.Available && m.volume > 0 && volumeBaseline > 0 {
+			signals.Onchain = proxySignal(m.volume, volumeBaseline, "market-data-activity-proxy")
+		}
+		if !signals.CapitalFlow.Available && m.observed {
+			signals.CapitalFlow = Signal{Score: clampScore(config.Get().NarrativeScoreBase + m.flow*100), Available: true, Confidence: .35, Change24h: m.flow * 100, Sources: []string{"market-data-capital-flow-proxy"}}
+		}
+		if !signals.Catalyst.Available && m.observed {
+			signals.Catalyst = Signal{Score: clampScore(config.Get().NarrativeScoreBase + m.catalyst*config.Get().NarrativeScoreScale), Available: true, Confidence: .3, Change24h: m.catalyst, Change7d: m.catalyst, Sources: []string{"market-data-momentum-proxy"}}
+		}
+		result[narrative.ID] = signals
+	}
+}
+
+func positiveMedian(values map[string]narrativeMarketMetrics, pick func(narrativeMarketMetrics) float64) float64 {
+	items := make([]float64, 0, len(values))
+	for _, value := range values {
+		if selected := pick(value); selected > 0 {
+			items = append(items, selected)
+		}
+	}
+	if len(items) == 0 {
+		return 0
+	}
+	sort.Float64s(items)
+	middle := len(items) / 2
+	if len(items)%2 == 0 {
+		return (items[middle-1] + items[middle]) / 2
+	}
+	return items[middle]
+}
+
+func proxySignal(value, baseline float64, source string) Signal {
+	if value <= 0 || baseline <= 0 {
+		return Signal{}
+	}
+	return Signal{Score: clampScore(config.Get().NarrativeScoreBase + math.Log(value/baseline)*20), Available: true, Confidence: .3, Sources: []string{source}}
+}
 func recordAndLoadVolumeHistory(markets map[string]freeMarket, binanceVolumes map[string]float64, now time.Time) map[string]db.NarrativeMetricHistory {
 	history := make(map[string]db.NarrativeMetricHistory, len(SeedNarratives))
 	for _, narrative := range SeedNarratives {
@@ -367,11 +485,33 @@ func applyOnchainSignals(ctx context.Context, client *http.Client, result map[st
 		snapshots["evm-l2"] = total / 3
 	}
 
+	chainValues := make([]float64, 0, len(snapshots))
+	for _, value := range snapshots {
+		if value > 0 {
+			chainValues = append(chainValues, value)
+		}
+	}
+	sort.Float64s(chainValues)
+	var chainBaseline float64
+	if len(chainValues) > 0 {
+		middle := len(chainValues) / 2
+		chainBaseline = chainValues[middle]
+		if len(chainValues)%2 == 0 {
+			chainBaseline = (chainValues[middle-1] + chainValues[middle]) / 2
+		}
+	}
 	for chain, value := range snapshots {
 		metric := "onchain_" + chain
 		history, _ := db.GetNarrativeMetricHistory("network:"+chain, metric, time.Now())
 		_ = db.RecordNarrativeMetric("network:"+chain, metric, "public-rpc", value, time.Now())
 		if !history.Previous24Available || history.Previous24 <= 0 {
+			for id, narrativeChain := range cfg.OnchainNarrativeChains {
+				if narrativeChain == chain && chainBaseline > 0 {
+					signals := result[id]
+					signals.Onchain = proxySignal(value, chainBaseline, "public-rpc-activity-proxy")
+					result[id] = signals
+				}
+			}
 			continue
 		}
 		change24 := (value/history.Previous24 - 1) * 100

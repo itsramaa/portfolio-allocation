@@ -15,11 +15,14 @@ import type { RebalanceOrderResponse } from '../services/api'
 import { convertUSDToCurrency, formatCurrencyValue } from '../utils/currency'
 import { CurrencyDisplay } from './CurrencyDisplay'
 
+const HIDDEN = '••••••'
+
 interface RebalanceProps {
   assets: Asset[]
   targets: TargetAllocation
   currency?: CurrencyCode
   rates?: Record<string, number>
+  hideValues?: boolean
 }
 
 function ActionBadge({ order }: { order: RebalanceOrderResponse }) {
@@ -42,10 +45,10 @@ function ActionBadge({ order }: { order: RebalanceOrderResponse }) {
 }
 
 function OrderRow({
-  order, idx, total, assets, currency, rates, isUSD, dimmed,
+  order, idx, total, assets, currency, rates, isUSD, dimmed, hideValues,
 }: {
   order: RebalanceOrderResponse; idx: number; total: number
-  assets: Asset[]; currency: CurrencyCode; rates: Record<string, number>; isUSD: boolean; dimmed?: boolean
+  assets: Asset[]; currency: CurrencyCode; rates: Record<string, number>; isUSD: boolean; dimmed?: boolean; hideValues?: boolean
 }) {
   const isFutures = isFuturesAsset(order.symbol)
   const asset = assets.find(a => a.symbol === order.symbol)
@@ -79,12 +82,12 @@ function OrderRow({
       </td>
 
       <td className="mono" style={{ padding: '0.8rem 1rem', textAlign: 'right', fontWeight: 700, color: dimmed ? 'oklch(55% 0.01 240)' : actionColor }}>
-        {fmtUSDT(order.amountUSDT)}
+        {hideValues ? HIDDEN : fmtUSDT(order.amountUSDT)}
       </td>
 
       {!isUSD && (
         <td className="mono" style={{ padding: '0.8rem 1rem', textAlign: 'right', color: dimmed ? 'oklch(45% 0.01 240)' : actionColor }}>
-          {formatCurrencyValue(localValue, currency)}
+          {hideValues ? HIDDEN : formatCurrencyValue(localValue, currency)}
         </td>
       )}
 
@@ -127,7 +130,7 @@ function OrderRow({
   )
 }
 
-export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: RebalanceProps) {
+export function Rebalance({ assets, targets, currency = 'USD', rates = {}, hideValues = false }: RebalanceProps) {
   const {
     confirmed, setConfirmed, showSkipped, setShowSkipped, calculating, error, rebalanceResult, setRebalanceResult,
     totalUSDT, spotRebalanceUSDT, futuresUnderTarget, hasTargets, targetSum, actionable, skipped, triggered, sellTotal, buyTotal,
@@ -161,21 +164,13 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
             </h2>
             <p style={{ fontSize: '0.82rem', color: 'oklch(55% 0.01 240)', marginTop: '0.25rem', lineHeight: 1.6 }}>
               Calculates sell and buy orders to reach target allocation. 3-Gate Adaptive Architecture:
-              <br />
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'oklch(70% 0.01 240)', fontSize: '0.78rem' }}>
-                Gate 1 (Allocation Band): |drift| ≥ max({(REBALANCE_RELATIVE*100).toFixed(0)}% × target, ±{REBALANCE_FLOOR_PP}pp)
-              </span>
-              <br />
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'oklch(70% 0.01 240)', fontSize: '0.78rem' }}>
-                Gate 2 (Economic Minimum): drift value ≥ {(MIN_DRIFT_PORTFOLIO_RATIO * 100).toFixed(1)}% × spot rebalance base ({fmtUSDT(spotRebalanceUSDT * MIN_DRIFT_PORTFOLIO_RATIO)})
-              </span>
-              <br />
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', color: 'oklch(70% 0.01 240)', fontSize: '0.78rem' }}>
-                Gate 3 (Execution Guard): trade value ≥ ${MIN_ORDER_USDT} &amp; friction ≤ {(MAX_REBALANCE_COST_RATIO * 100).toFixed(0)}% trade value
-              </span>
-              <br />
-              <span style={{ color: 'oklch(45% 0.01 240)', fontSize: '0.78rem' }}>Futures tetap masuk total kekayaan, tetapi kekurangan Futures hanya bisa diisi lewat Inject dan tidak membuat order SPOT ➔ FUT otomatis.</span>
             </p>
+            <div className="rebalance-gates-detail">
+              <span className="gate-line">Gate 1 (Allocation Band): |drift| ≥ max({(REBALANCE_RELATIVE*100).toFixed(0)}% × target, ±{REBALANCE_FLOOR_PP}pp)</span>
+              <span className="gate-line">Gate 2 (Economic Minimum): drift value ≥ {(MIN_DRIFT_PORTFOLIO_RATIO * 100).toFixed(1)}% × spot rebalance base ({fmtUSDT(spotRebalanceUSDT * MIN_DRIFT_PORTFOLIO_RATIO)})</span>
+              <span className="gate-line">Gate 3 (Execution Guard): trade value ≥ ${MIN_ORDER_USDT} &amp; friction ≤ {(MAX_REBALANCE_COST_RATIO * 100).toFixed(0)}% trade value</span>
+              <span className="gate-note">Futures tetap masuk total kekayaan, tetapi kekurangan Futures hanya bisa diisi lewat Inject dan tidak membuat order SPOT ➔ FUT otomatis.</span>
+            </div>
           </div>
         </div>
 
@@ -202,12 +197,12 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
           <div>
             <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Total Portfolio Value</div>
             <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#F0B90B' }}>
-              <CurrencyDisplay usdValue={totalUSDT} currency={currency} rates={rates} />
+              {hideValues ? HIDDEN : <CurrencyDisplay usdValue={totalUSDT} currency={currency} rates={rates} />}
             </div>
           </div>
           <div>
             <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Spot Rebalance Base</div>
-            <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#60a5fa' }}>{fmtUSDT(spotRebalanceUSDT)}</div>
+            <div className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#60a5fa' }}>{hideValues ? HIDDEN : fmtUSDT(spotRebalanceUSDT)}</div>
           </div>
           <div>
             <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>Min Order Size</div>
@@ -261,13 +256,13 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
             <div className="surface-card fade-up" style={{ padding: '1.5rem', border: '1px solid oklch(239% 0.082 120 / 0.3)' }}>
               <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Total to Sell</div>
-              <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ef4444' }}>{fmtUSDT(sellTotal)}</div>
+              <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ef4444' }}>{hideValues ? HIDDEN : fmtUSDT(sellTotal)}</div>
               <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>{actionable.filter(o => o.action === 'SELL').length} orders</div>
             </div>
 
             <div className="surface-card fade-up" style={{ padding: '1.5rem', border: '1px solid oklch(142% 0.071 120 / 0.3)' }}>
               <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Total to Buy</div>
-              <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#22c55e' }}>{fmtUSDT(buyTotal)}</div>
+              <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#22c55e' }}>{hideValues ? HIDDEN : fmtUSDT(buyTotal)}</div>
               <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>{actionable.filter(o => o.action === 'BUY').length} orders</div>
             </div>
 
@@ -282,7 +277,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
             {rebalanceResult.estimatedFeesUSDT > 0 && (
               <div className="surface-card fade-up" style={{ padding: '1.5rem', border: '1px solid oklch(50% 0.15 240 / 0.25)' }}>
                 <div style={{ fontSize: '0.72rem', color: 'oklch(50% 0.01 240)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Est. Fees</div>
-                <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#60a5fa' }}>{fmtUSDT(rebalanceResult.estimatedFeesUSDT)}</div>
+                <div className="mono" style={{ fontSize: '1.35rem', fontWeight: 700, color: '#60a5fa' }}>{hideValues ? HIDDEN : fmtUSDT(rebalanceResult.estimatedFeesUSDT)}</div>
                 <div style={{ fontSize: '0.75rem', color: 'oklch(55% 0.01 240)', marginTop: '0.35rem' }}>~0.1% per order</div>
               </div>
             )}
@@ -305,7 +300,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                       border: '1px solid oklch(60% 0.22 30 / 0.4)', borderRadius: '0.25rem',
                       fontSize: '0.7rem', fontWeight: 700, padding: '0.1rem 0.4rem',
                       fontFamily: 'JetBrains Mono, monospace',
-                    }}>{o.symbol} {o.action === 'SELL' ? '▼' : '▲'} {fmtUSDT(o.amountUSDT)}</span>
+                    }}>{o.symbol} {o.action === 'SELL' ? '▼' : '▲'} {hideValues ? HIDDEN : fmtUSDT(o.amountUSDT)}</span>
                   ))}
                 </div>
               )}
@@ -330,7 +325,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                   </thead>
                   <tbody>
                     {actionable.map((o, i) => (
-                      <OrderRow key={o.symbol} order={o} idx={i} total={actionable.length} assets={assets} currency={currency} rates={rates} isUSD={isUSD} />
+                      <OrderRow key={o.symbol} order={o} idx={i} total={actionable.length} assets={assets} currency={currency} rates={rates} isUSD={isUSD} hideValues={hideValues} />
                     ))}
                   </tbody>
                 </table>
@@ -343,7 +338,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                       <ActionBadge order={order} />
                     </div>
                     <div className="mobile-data-card-meta mono">
-                      <span>{fmtUSDT(order.amountUSDT)}</span>
+                      <span>{hideValues ? HIDDEN : fmtUSDT(order.amountUSDT)}</span>
                       <span>Current {order.currentPct.toFixed(1)}%</span>
                       <span>Target {order.targetPct.toFixed(1)}%</span>
                       <span style={{ color: order.action === 'SELL' ? '#ef4444' : '#22c55e' }}>{fmtPct(order.diffPct)}</span>
@@ -395,7 +390,7 @@ export function Rebalance({ assets, targets, currency = 'USD', rates = {} }: Reb
                       </thead>
                       <tbody>
                         {skipped.map((o, i) => (
-                          <OrderRow key={o.symbol} order={o} idx={i} total={skipped.length} assets={assets} currency={currency} rates={rates} isUSD={isUSD} dimmed />
+                          <OrderRow key={o.symbol} order={o} idx={i} total={skipped.length} assets={assets} currency={currency} rates={rates} isUSD={isUSD} dimmed hideValues={hideValues} />
                         ))}
                       </tbody>
                     </table>

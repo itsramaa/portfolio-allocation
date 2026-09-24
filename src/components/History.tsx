@@ -13,13 +13,17 @@ interface HistoryProps {
   btcPrice?: number
   currency?: CurrencyCode
   rates?: Record<string, number>
+  hideValues?: boolean
 }
+
+const HIDDEN = '••••••'
 
 export function History({
   currentTotal,
   btcPrice,
   currency = 'USD',
   rates = {},
+  hideValues = false,
 }: HistoryProps) {
   const {
     snapshots, captureSnapshot: handleCaptureSnapshot, seedDemo: handleSeedDemo,
@@ -69,7 +73,7 @@ export function History({
             disabled={currentTotal <= 0}
             style={{ fontSize: '0.75rem' }}
           >
-            Capture Today ({currentTotalFormatted})
+            Capture Today ({hideValues ? HIDDEN : currentTotalFormatted})
           </button>
           {snapshots.length > 0 && (
             <button
@@ -141,9 +145,9 @@ export function History({
                         <div className="chart-tooltip" style={{ padding: '0.6rem 0.9rem' }}>
                           <div style={{ fontSize: '0.7rem', color: 'oklch(50% 0.01 240)', marginBottom: '0.2rem' }}>{d.fullDate}</div>
                           <div className="mono" style={{ fontSize: '1.05rem', fontWeight: 700, color: '#F0B90B' }}>
-                            {formatCurrencyValue(d.convertedVal, currency)}
+                            {hideValues ? HIDDEN : formatCurrencyValue(d.convertedVal, currency)}
                           </div>
-                          {!isUSD && (
+                          {!isUSD && !hideValues && (
                             <div className="mono" style={{ fontSize: '0.75rem', color: 'oklch(60% 0.01 240)', marginTop: '0.15rem' }}>
                               = ${d.totalUSDT.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                             </div>
@@ -209,12 +213,14 @@ export function History({
 
                         {/* Converted Portfolio Value with USD tooltip */}
                         <td className="mono" style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: 'oklch(95% 0.01 240)' }}>
-                          <CurrencyDisplay
-                            usdValue={snap.totalUSDT}
-                            currency={currency}
-                            rates={rates}
-                            showUsdSub={!isUSD}
-                          />
+                          {hideValues ? HIDDEN : (
+                            <CurrencyDisplay
+                              usdValue={snap.totalUSDT}
+                              currency={currency}
+                              rates={rates}
+                              showUsdSub={!isUSD}
+                            />
+                          )}
                         </td>
 
                         <td className="mono" style={{
@@ -222,16 +228,22 @@ export function History({
                           textAlign: 'right',
                           color: diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : 'oklch(50% 0.01 240)',
                         }}>
-                          {prev ? `${diff >= 0 ? '+' : '-'}${formatCurrencyValue(convertedDiff, currency)} (${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(2)}%)` : '—'}
+                          {prev
+                            ? hideValues
+                              ? `${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(2)}%`
+                              : `${diff >= 0 ? '+' : '-'}${formatCurrencyValue(convertedDiff, currency)} (${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(2)}%)`
+                            : '—'}
                         </td>
 
                         <td className="mono" style={{ padding: '0.75rem', textAlign: 'right', color: 'oklch(60% 0.01 240)' }}>
                           {snap.btcPrice ? (
-                            <CurrencyDisplay
-                              usdValue={snap.btcPrice}
-                              currency={currency}
-                              rates={rates}
-                            />
+                            hideValues ? HIDDEN : (
+                              <CurrencyDisplay
+                                usdValue={snap.btcPrice}
+                                currency={currency}
+                                rates={rates}
+                              />
+                            )
                           ) : '—'}
                         </td>
                       </tr>
@@ -249,12 +261,12 @@ export function History({
                   <div className="mobile-data-card" key={`mobile-${snap.timestamp}`}>
                     <div className="mobile-data-card-header">
                       <strong>{new Date(snap.timestamp).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short' })}</strong>
-                      <span className="mono">{formatCurrencyValue(convertUSDToCurrency(snap.totalUSDT, currency, rates), currency)}</span>
+                      <span className="mono">{hideValues ? HIDDEN : formatCurrencyValue(convertUSDToCurrency(snap.totalUSDT, currency, rates), currency)}</span>
                     </div>
                     <div className="mobile-data-card-meta mono">
                       <span>{formatWibDateTime(snap.timestamp)}</span>
                       <span style={{ color: diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : 'oklch(60% 0.01 240)' }}>{prev ? `${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(2)}%` : '—'}</span>
-                      <span>BTC {snap.btcPrice ? formatCurrencyValue(convertUSDToCurrency(snap.btcPrice, currency, rates), currency) : '—'}</span>
+                      <span>BTC {snap.btcPrice ? (hideValues ? HIDDEN : formatCurrencyValue(convertUSDToCurrency(snap.btcPrice, currency, rates), currency)) : '—'}</span>
                     </div>
                   </div>
                 )

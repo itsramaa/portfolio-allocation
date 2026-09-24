@@ -74,7 +74,7 @@ type NarrativesReport struct {
 var SeedNarratives = []Narrative{
 	{ID: "ai-agents", Name: "AI Agents", Emoji: "🤖", Description: "Autonomous AI agents operating on-chain, managing protocols, and interacting with DeFi.", Assets: []string{"NEAR", "FET", "RNDR", "GRT", "OCEAN", "AGIX"}},
 	{ID: "rwa", Name: "Real World Assets", Emoji: "🏦", Description: "Tokenization of traditional financial assets including bonds, credit, and treasuries.", Assets: []string{"ONDO", "LINK", "MKR", "PAXG"}},
-	{ID: "depin", Name: "DePIN", Emoji: "📡", Description: "Decentralized Physical Infrastructure Networks — compute, storage, wireless, and energy.", Assets: []string{"RENDER", "FIL", "AR", "HNT", "THETA", "NEAR"}},
+	{ID: "depin", Name: "DePIN", Emoji: "📡", Description: "Decentralized Physical Infrastructure Networks — compute, storage, wireless, and energy.", Assets: []string{"RENDER", "FIL", "AR", "HNT", "THETA", "NEAR", "IO", "AKT", "AIOZ", "WMT", "GRASS"}},
 	{ID: "btc-fi", Name: "Bitcoin Ecosystem / BTC-Fi", Emoji: "⚡", Description: "Layer-2s, restaking, and DeFi primitives built natively or anchored on Bitcoin.", Assets: []string{"BTC", "STX", "ORDI", "SATS"}},
 	{ID: "l1-chains", Name: "High-Throughput L1s", Emoji: "🚀", Description: "Monolithic, parallelized Layer 1 blockchains competing on raw TPS and latency.", Assets: []string{"SOL", "BNB", "AVAX", "SUI", "APT", "NEAR"}},
 	{ID: "eth-l2s", Name: "Ethereum & Modular L2s", Emoji: "🔷", Description: "Ethereum Layer-2 rollups, data availability layers, and modular execution environments.", Assets: []string{"ETH", "ARB", "OP", "MATIC"}},

@@ -3,12 +3,14 @@ import { useAuthGate } from '../hooks/useAuthGate'
 
 interface AuthContextType {
   isAuthenticated: boolean
+  offlineMode: boolean
   logout: () => void
   updatePassword: (current: string, next: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
+  offlineMode: false,
   logout: () => {},
   updatePassword: async () => ({ ok: false, error: 'Not implemented' }),
 })
@@ -23,7 +25,7 @@ interface AuthGateProps {
 
 export function AuthGate({ children }: AuthGateProps) {
   const {
-    isAuthenticated, password, setPassword, showPassword, setShowPassword,
+    isAuthenticated, offlineMode, password, setPassword, showPassword, setShowPassword,
     loading, error, handleLogin, logout, updatePassword,
   } = useAuthGate()
 
@@ -261,6 +263,7 @@ export function AuthGate({ children }: AuthGateProps) {
     <AuthContext.Provider
       value={{
         isAuthenticated,
+        offlineMode,
         logout,
         updatePassword,
       }}

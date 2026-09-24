@@ -176,7 +176,7 @@ func Load() *Config {
 	rebalanceThresholdPct := getEnvFloat64("REBALANCE_THRESHOLD_PCT", 1.0)
 	rebalanceFeeRate := getEnvFloat64("REBALANCE_FEE_RATE", 0.001)
 
-	narrativeMarketIDs := splitCSV(getEnv("NARRATIVE_COINGECKO_MARKET_IDS", "bitcoin,ethereum,solana,binancecoin,avalanche-2,sui,aptos,near,fetch-ai,render-token,the-graph,ocean-protocol,singularitynet,ondo-finance,chainlink,maker,pax-gold,filecoin,arweave,helium,theta-token,stacks,ordinals,arbitrum,optimism,polygon-ecosystem"))
+	narrativeMarketIDs := splitCSV(getEnv("NARRATIVE_COINGECKO_MARKET_IDS", "bitcoin,ethereum,solana,binancecoin,avalanche-2,sui,aptos,near,fetch-ai,render-token,the-graph,ocean-protocol,singularitynet,ondo-finance,chainlink,maker,pax-gold,filecoin,arweave,helium,theta-token,akash-network,aioz-network,world-mobile-token,grass,io-net,stacks,ordinals,arbitrum,optimism,polygon-ecosystem"))
 	narrativeRSSFeeds := splitCSV(getEnv("NARRATIVE_RSS_FEEDS", "https://www.reddit.com/r/CryptoCurrency/.rss,https://www.coindesk.com/arc/outboundfeeds/rss/,https://decrypt.co/feed"))
 	assetAliases := parseMap(getEnv("NARRATIVE_ASSET_ALIASES", "RNDR=RENDER,MATIC=POL"))
 	narrativeAliases := parseListMap(getEnv("NARRATIVE_ALIASES", "ai-agents=AI agents|agentic|Fetch.ai|Artificial Superintelligence|NEAR|Render|RNDR|GRT|OCEAN|AGIX;rwa=real world asset|tokenization|Ondo|ONDO|Chainlink|MKR|PAXG;depin=DePIN|decentralized physical|Render|Filecoin|Arweave|Helium|Theta;btc-fi=Bitcoin|BTC|Ordinals|Stacks|STX;l1-chains=Solana|SOL|BNB Chain|Avalanche|Sui|Aptos|NEAR;eth-l2s=Ethereum|Arbitrum|Optimism|Polygon|rollup|Layer 2|L2"))

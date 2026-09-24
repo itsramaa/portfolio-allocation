@@ -384,9 +384,17 @@ export function Narratives({ assets }: NarrativesProps) {
       {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.35rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0 }}>
-            Crypto Narratives
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: '1.35rem', fontWeight: 800, letterSpacing: '-0.03em', margin: 0 }}>
+              Crypto Narratives
+            </h1>
+            <span
+              className="badge badge-warning badge-sm mono"
+              style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.2rem 0.55rem', letterSpacing: '0.05em' }}
+            >
+              DEVELOPMENT MODE
+            </span>
+          </div>
           <p style={{ fontSize: '0.78rem', color: 'oklch(50% 0.01 240)', marginTop: '0.35rem' }}>
             Detecting emerging market themes via social, volume, on-chain, and capital flow signals
           </p>

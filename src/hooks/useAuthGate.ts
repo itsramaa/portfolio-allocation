@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { checkAuth, login, clearAuthToken, changePassword } from '../services/api'
 import { initStorageFromBackend } from '../utils/storage'
 import { initCurrencyFromBackend } from '../utils/currency'
+import { probeBackend, backendOnline } from '../utils/backendStatus'
 
 export function useAuthGate() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [offlineMode, setOfflineMode] = useState(false)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -12,6 +14,13 @@ export function useAuthGate() {
 
   useEffect(() => {
     const verify = async () => {
+      const online = await probeBackend()
+      if (!online) {
+        // Backend unreachable — run in offline demo mode, no auth required
+        setOfflineMode(true)
+        setIsAuthenticated(true)
+        return
+      }
       const ok = await checkAuth()
       if (ok) {
         await Promise.all([initStorageFromBackend(), initCurrencyFromBackend()])
@@ -43,7 +52,7 @@ export function useAuthGate() {
   }
 
   return {
-    isAuthenticated, password, setPassword, showPassword, setShowPassword,
+    isAuthenticated, offlineMode, password, setPassword, showPassword, setShowPassword,
     loading, error, handleLogin, logout,
     updatePassword: (current: string, next: string) => changePassword(current, next),
   }
