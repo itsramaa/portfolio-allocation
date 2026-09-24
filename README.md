@@ -117,20 +117,6 @@ Backend API → `http://localhost:8080`
 
 ## 🗺️ Roadmap
 
-### Futures Enhancements
-
-The current implementation includes Futures positions in total portfolio value but treats them as read-only — no automatic SPOT → FUT order generation. The planned enhancements below address this gap.
-
-| # | Feature | Description | Status |
-|---|---|---|---|
-| F-1 | **Futures drift alerts** | Extend rebalance drift detection to flag Futures positions that exceed their target band, with a separate alert tier from Spot | 🔲 Planned |
-| F-2 | **Futures inject calculator** | Dedicate a section in the Inject tab to calculate how much USDT to transfer to Futures to close underweight positions | 🔲 Planned |
-| F-3 | **SPOT → FUT transfer flow** | Guided step-by-step flow for moving capital from Spot wallet to Futures wallet, with confirmation and fee estimate | 🔲 Planned |
-| F-4 | **Futures-only rebalance plan** | Separate rebalance calculation scoped exclusively to Futures positions — sell overweight, buy underweight within Futures | 🔲 Planned |
-| F-5 | **Unified rebalance mode** | Combined Spot + Futures rebalance plan with wallet-aware routing (keeps funds in their originating wallet unless explicitly crossing) | 🔲 Planned |
-| F-6 | **Futures PnL overlay** | Show unrealized PnL per Futures position alongside allocation percentage in Dashboard and History | 🔲 Planned |
-| F-7 | **Leverage-adjusted weighting** | Option to display Futures positions at notional value (quantity × price × leverage) instead of margin value for more accurate allocation math | 🔲 Planned |
-
 ### Other Planned Features
 
 | # | Feature | Description | Status |
